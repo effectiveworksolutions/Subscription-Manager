@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>SubTracker</title>
+<meta name="theme-color" content="#0a0a0f"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="SubTracker"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%230a0a0f'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%237c3aed'/%3E%3Cstop offset='100%25' stop-color='%23a855f7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ctext x='256' y='350' font-family='Arial Black' font-size='360' font-weight='900' fill='url(%23g)' text-anchor='middle'%3E%24%3C/text%3E%3C/svg%3E"/>
+<link rel="manifest" href="data:application/json,{%22name%22:%22SubTracker%22,%22short_name%22:%22SubTracker%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%230a0a0f%22,%22theme_color%22:%22%230a0a0f%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%230a0a0f'/%3E%3Ctext x='256' y='350' font-family='Arial Black' font-size='360' font-weight='900' fill='%23a855f7' text-anchor='middle'%3E%24%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22512x512%22,%22type%22:%22image/svg+xml%22,%22purpose%22:%22any maskable%22}]}"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+
+:root{
+  --bg:#0a0a0f;--surface:#141420;--surface2:#1e1e2e;--surface3:#252538;
+  --border:rgba(255,255,255,0.07);--border-strong:rgba(255,255,255,0.15);
+  --text:#f0f0f8;--text-muted:#8888aa;--text-faint:#55556a;
+  --accent:#7c3aed;--accent-bright:#a855f7;--accent-light:rgba(124,58,237,0.15);--accent-text:#c084fc;
+  --warn:#f59e0b;--warn-light:rgba(245,158,11,0.12);
+  --danger:#f87171;--danger-light:rgba(248,113,113,0.12);
+  --success:#34d399;--success-light:rgba(52,211,153,0.12);
+  --r:14px;--r-sm:9px;--shadow:0 4px 24px rgba(0,0,0,0.5);
+  --nav-h:64px;--safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px);
+}
+
+html{height:100%}
+body{
+  font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);
+  min-height:100%;
+  background-image:radial-gradient(ellipse at 20% 0%,rgba(124,58,237,0.08) 0%,transparent 55%),
+                   radial-gradient(ellipse at 80% 100%,rgba(168,85,247,0.04) 0%,transparent 55%);
+}
+
+/* ── SHARED ── */
+.badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;letter-spacing:.03em}
+.badge-active{background:var(--success-light);color:var(--success)}
+.badge-trial{background:var(--warn-light);color:var(--warn)}
+.badge-paused{background:rgba(255,255,255,0.05);color:var(--text-faint)}
+.badge-cancelled{background:var(--danger-light);color:var(--danger)}
+
+.next-pay{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:500;margin-top:5px}
+.next-pay-count{font-size:10px;font-weight:700;padding:1px 5px;border-radius:20px}
+.next-pay-urgent{background:rgba(248,113,113,0.1);color:var(--danger)}
+.next-pay-urgent .next-pay-count{background:var(--danger);color:#0a0a0f}
+.next-pay-soon{background:rgba(245,158,11,0.1);color:var(--warn)}
+.next-pay-soon .next-pay-count{background:var(--warn);color:#0a0a0f}
+.next-pay-ok{background:rgba(52,211,153,0.08);color:var(--success)}
+.next-pay-ok .next-pay-count{background:var(--success);color:#0a0a0f}
+.next-pay-far{background:var(--surface2);color:var(--text-muted)}
+.next-pay-far .next-pay-count{background:var(--surface3);color:var(--text-muted)}
+.next-pay-paused{background:var(--surface2);color:var(--text-faint)}
+
+.sub-icon{border-radius:12px;background:var(--surface3);display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid var(--border);flex-shrink:0}
+.sub-icon svg{width:100%;height:100%;border-radius:11px;display:block}
+.sub-icon .icon-fallback{font-size:20px}
+
+.empty{text-align:center;padding:4rem 1rem;color:var(--text-muted);font-size:15px}
+.empty svg{margin:0 auto 14px;display:block;color:var(--text-faint)}
+
+/* metric cards */
+.metric{background:var(--surface);border-radius:var(--r);border:1px solid var(--border);position:relative;overflow:hidden}
+.metric::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent-bright));opacity:.7}
+.metric-label{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint)}
+.metric-value{font-family:'Bebas Neue',sans-serif;color:var(--text);line-height:1;letter-spacing:1px}
+.metric-sub{font-size:11px;color:var(--text-muted);margin-top:4px}
+
+/* form elements */
+.form-row{margin-bottom:14px}
+.form-row label{display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);margin-bottom:6px}
+.form-row input,.form-row select{width:100%;height:44px;padding:0 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface2);font-family:'Inter',sans-serif;font-size:14px;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;-webkit-appearance:none}
+.form-row input:focus,.form-row select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,58,237,.15)}
+.form-row select option{background:var(--surface2)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.renew-display{height:44px;padding:0 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface3);font-size:13px;color:var(--text-faint);display:flex;align-items:center}
+.or-divider{display:flex;align-items:center;gap:10px;color:var(--text-faint);font-size:11px;margin:12px 0}
+.or-divider::before,.or-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* service picker */
+.service-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:8px;max-height:190px;overflow-y:auto;padding:2px}
+.service-tile{display:flex;flex-direction:column;align-items:center;gap:5px;padding:9px 4px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface2);cursor:pointer;transition:all .15s;text-align:center}
+.service-tile:hover,.service-tile.selected{border-color:var(--accent-bright);background:var(--accent-light)}
+.service-tile.selected{box-shadow:0 0 0 1px var(--accent)}
+.service-tile .tile-brand-svg{width:56px;height:26px}
+.service-tile .tile-brand-svg svg{width:100%;height:100%;border-radius:4px;display:block}
+.service-tile .tile-emoji{font-size:22px;line-height:28px}
+.service-tile span{font-size:9px;color:var(--text-faint);line-height:1.2;word-break:break-word}
+.service-tile.selected span{color:var(--accent-text);font-weight:600}
+
+/* ═══════════════════════════════════════════
+   MOBILE LAYOUT  (default, < 700px)
+═══════════════════════════════════════════ */
+#mobile-ui{display:flex;flex-direction:column;height:100vh;height:100dvh}
+#desktop-ui{display:none}
+
+.top-bar{flex-shrink:0;padding:0 16px;padding-top:max(14px,var(--safe-t));padding-bottom:12px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.top-bar h1{font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:3px;background:linear-gradient(135deg,#f0f0f8 40%,var(--accent-bright));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1}
+.top-bar-actions{display:flex;gap:8px;align-items:center}
+.fab{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-bright));border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(124,58,237,.45);transition:transform .15s}
+.fab:active{transform:scale(.93)}
+.icon-btn-top{width:40px;height:40px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-muted);transition:background .15s}
+.icon-btn-top:active{background:var(--surface2)}
+
+.m-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:14px 14px 0;padding-bottom:calc(var(--nav-h) + var(--safe-b) + 14px)}
+
+.m-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.m-summary .metric{padding:12px 10px}
+.m-summary .metric-value{font-size:1.5rem}
+
+.search-row{display:flex;gap:10px;margin-bottom:10px;align-items:center}
+.search-wrap{position:relative;flex:1}
+.search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-faint);pointer-events:none}
+.search-wrap input{width:100%;height:44px;padding:0 14px 0 40px;border-radius:22px;border:1px solid var(--border);background:var(--surface);font-family:'Inter',sans-serif;font-size:15px;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s}
+.search-wrap input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,58,237,.15)}
+.search-wrap input::placeholder{color:var(--text-faint)}
+
+.chips-row{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px;scrollbar-width:none}
+.chips-row::-webkit-scrollbar{display:none}
+.chip{height:32px;padding:0 14px;border-radius:16px;border:1px solid var(--border);background:var(--surface);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--text-muted);white-space:nowrap;cursor:pointer;transition:all .15s;flex-shrink:0}
+.chip.active{border-color:var(--accent-bright);background:var(--accent-light);color:var(--accent-text)}
+
+.section-label{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--text-faint);margin-bottom:10px;padding-left:2px}
+
+.m-sub-list{display:flex;flex-direction:column;gap:10px}
+.m-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 15px;display:flex;align-items:flex-start;gap:13px;cursor:pointer;transition:border-color .2s}
+.m-card:active{border-color:rgba(124,58,237,.4);background:var(--surface2)}
+.m-card .sub-icon{width:48px;height:48px}
+.m-card-body{flex:1;min-width:0}
+.m-card-name{font-size:15px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-card-meta{font-size:12px;color:var(--text-faint);margin-top:1px}
+.m-card-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0}
+.price-main{font-size:15px;font-weight:600;color:var(--text)}
+.price-per{font-size:10px;color:var(--text-faint)}
+
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;height:calc(var(--nav-h) + var(--safe-b));background:rgba(14,14,22,.95);backdrop-filter:blur(16px);border-top:1px solid var(--border);display:flex;align-items:flex-start;padding-top:6px;padding-bottom:var(--safe-b);z-index:100}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;cursor:pointer;color:var(--text-faint);font-size:10px;font-weight:500;letter-spacing:.04em;border:none;background:none;font-family:'Inter',sans-serif;transition:color .15s}
+.nav-item.active{color:var(--accent-text)}
+.nav-item:active svg{transform:scale(.88)}
+
+/* ═══════════════════════════════════════════
+   DESKTOP LAYOUT  (≥ 700px)
+═══════════════════════════════════════════ */
+@media(min-width:700px){
+  #mobile-ui{display:none}
+  #desktop-ui{display:block;max-width:860px;margin:0 auto;padding:2.5rem 1.5rem 3rem}
+
+  .d-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:2rem}
+  .d-header h1{font-family:'Bebas Neue',sans-serif;font-size:3rem;letter-spacing:3px;background:linear-gradient(135deg,#f0f0f8 40%,var(--accent-bright));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1}
+  .d-header p{font-size:13px;color:var(--text-faint);margin-top:5px}
+  .d-btn-add{height:42px;padding:0 22px;background:linear-gradient(135deg,var(--accent),var(--accent-bright));color:#fff;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:0 2px 12px rgba(124,58,237,.35);transition:opacity .15s,box-shadow .15s}
+  .d-btn-add:hover{opacity:.9;box-shadow:0 4px 20px rgba(124,58,237,.5)}
+
+  .d-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:2rem}
+  .d-summary .metric{padding:1.2rem 1.4rem}
+  .d-summary .metric-value{font-size:2.2rem}
+
+  .d-toolbar{display:flex;gap:10px;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
+  .d-search-wrap{position:relative;flex:1;min-width:180px}
+  .d-search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-faint);pointer-events:none}
+  .d-search-wrap input{width:100%;height:40px;padding:0 14px 0 38px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface);font-family:'Inter',sans-serif;font-size:14px;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s}
+  .d-search-wrap input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,58,237,.15)}
+  .d-search-wrap input::placeholder{color:var(--text-faint)}
+  select.d-filter{height:40px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface);font-family:'Inter',sans-serif;font-size:13px;color:var(--text);padding:0 12px;cursor:pointer;outline:none;transition:border-color .2s}
+  select.d-filter:focus{border-color:var(--accent)}
+  select.d-filter option{background:var(--surface2)}
+
+  .d-list{display:flex;flex-direction:column;gap:9px}
+  .d-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:15px 20px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow);transition:border-color .2s,transform .15s,box-shadow .2s;cursor:pointer}
+  .d-card:hover{border-color:rgba(124,58,237,.4);transform:translateY(-2px);box-shadow:var(--shadow),0 0 0 1px rgba(124,58,237,.1),0 0 20px rgba(124,58,237,.12)}
+  .d-card .sub-icon{width:46px;height:46px}
+  .d-card-info{flex:1;min-width:0}
+  .d-card-name{font-size:15px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .d-card-meta{font-size:13px;color:var(--text-muted);margin-top:2px}
+  .d-card-pay{font-size:12px;color:var(--text-faint);margin-top:1px}
+  .d-card-right{display:flex;align-items:center;gap:12px;flex-shrink:0}
+  .d-price{text-align:right}
+  .d-icon-btn,.d-icon-link{background:none;border:none;cursor:pointer;color:var(--text-faint);padding:6px;border-radius:7px;display:flex;align-items:center;transition:color .15s,background .15s;text-decoration:none}
+  .d-icon-btn:hover,.d-icon-link:hover{color:var(--accent-text);background:var(--accent-light)}
+
+  .d-section-label{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--text-faint);margin-bottom:12px;padding-left:2px}
+}
+
+/* ── SHEETS (shared by both) ── */
+.sheet-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(5px);z-index:200;align-items:flex-end;justify-content:center}
+#form-overlay{z-index:220}
+#detail-overlay{z-index:215}
+#filter-overlay{z-index:210}
+.sheet-overlay.open{display:flex}
+@media(min-width:700px){
+  .sheet-overlay{align-items:center}
+  .sheet{border-radius:18px !important;max-width:520px;margin:0 auto}
+}
+.sheet{background:var(--surface);border-radius:22px 22px 0 0;border:1px solid var(--border-strong);border-bottom:none;width:100%;max-width:600px;max-height:95vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 20px 20px;padding-bottom:calc(20px + var(--safe-b));box-shadow:0 -20px 60px rgba(0,0,0,.6);animation:slideUp .28s cubic-bezier(.34,1.2,.64,1)}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@media(min-width:700px){.sheet{animation:fadeIn .2s ease}}
+@keyframes fadeIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+.sheet-handle{width:36px;height:4px;border-radius:2px;background:var(--border-strong);margin:14px auto 20px}
+@media(min-width:700px){.sheet-handle{display:none}}
+.sheet-title{font-family:'Bebas Neue',sans-serif;font-size:1.7rem;letter-spacing:2px;color:var(--text);margin-bottom:18px}
+.sheet-actions{display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.btn-save{flex:1;height:50px;background:linear-gradient(135deg,var(--accent),var(--accent-bright));border:none;border-radius:25px;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;color:#fff;cursor:pointer;box-shadow:0 4px 16px rgba(124,58,237,.4)}
+.btn-save:active{opacity:.85}
+.btn-apply{width:100%;height:50px;background:linear-gradient(135deg,var(--accent),var(--accent-bright));border:none;border-radius:25px;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;color:#fff;cursor:pointer;box-shadow:0 4px 16px rgba(124,58,237,.4);margin-top:8px}
+.btn-apply:active{opacity:.85}
+.btn-cancel-s{height:50px;padding:0 20px;background:var(--surface2);border:1px solid var(--border-strong);border-radius:25px;font-family:'Inter',sans-serif;font-size:14px;color:var(--text-muted);cursor:pointer}
+.btn-delete-s{height:50px;padding:0 18px;background:var(--danger-light);border:none;border-radius:25px;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;color:var(--danger);cursor:pointer}
+
+/* detail sheet */
+.detail-header{display:flex;align-items:center;gap:16px;margin-bottom:20px}
+.detail-icon{width:60px;height:60px;border-radius:14px;background:var(--surface3);display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid var(--border);flex-shrink:0}
+.detail-icon svg{width:100%;height:100%;border-radius:13px;display:block}
+.detail-name{font-size:20px;font-weight:600;color:var(--text)}
+.detail-cat{font-size:13px;color:var(--text-faint);margin-top:2px}
+.detail-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--border);font-size:14px}
+.detail-row:last-of-type{border-bottom:none}
+.detail-label{color:var(--text-muted)}
+.detail-value{color:var(--text);font-weight:500;text-align:right;max-width:60%}
+.detail-actions{display:flex;gap:10px;margin-top:18px}
+.btn-edit{flex:1;height:50px;background:linear-gradient(135deg,var(--accent),var(--accent-bright));border:none;border-radius:25px;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;color:#fff;cursor:pointer}
+.btn-link{height:50px;padding:0 18px;background:var(--surface2);border:1px solid var(--border-strong);border-radius:25px;font-family:'Inter',sans-serif;font-size:14px;color:var(--text-muted);cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:6px}
+
+/* filter sheet */
+.filter-section{margin-bottom:18px}
+.filter-section-label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);margin-bottom:10px}
+.option-pills{display:flex;flex-wrap:wrap;gap:8px}
+.opt-pill{height:36px;padding:0 16px;border-radius:18px;border:1px solid var(--border);background:var(--surface2);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--text-muted);cursor:pointer;transition:all .15s}
+.opt-pill.active{border-color:var(--accent-bright);background:var(--accent-light);color:var(--accent-text)}
+
+/* iOS tip */
+#ios-tip{display:none;position:fixed;bottom:calc(var(--nav-h) + var(--safe-b));left:0;right:0;z-index:300;background:var(--surface2);border-top:1px solid rgba(124,58,237,.3);padding:14px 20px;text-align:center;box-shadow:0 -8px 32px rgba(0,0,0,.5)}
+@media(min-width:700px){#ios-tip{bottom:0}}
+</style>
+</head>
+<body>
+
+<!-- ═══ MOBILE UI ═══ -->
+<div id="mobile-ui">
+  <div class="top-bar">
+    <div><h1>SubTracker</h1></div>
+    <div class="top-bar-actions">
+      <button class="icon-btn-top" onclick="openFilter()" title="Filter">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+      </button>
+      <button class="fab" onclick="openAdd()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="m-content" id="m-content">
+    <div class="m-summary" id="m-summary"></div>
+    <div class="search-row">
+      <div class="search-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="m-search" placeholder="Search…" oninput="render()"/>
+      </div>
+    </div>
+    <div class="chips-row" id="m-chips">
+      <button class="chip active" data-val="all" onclick="setChip(this)">All</button>
+      <button class="chip" data-val="active" onclick="setChip(this)">Active</button>
+      <button class="chip" data-val="trial" onclick="setChip(this)">Trial</button>
+      <button class="chip" data-val="paused" onclick="setChip(this)">Paused</button>
+      <button class="chip" data-val="cancelled" onclick="setChip(this)">Cancelled</button>
+    </div>
+    <div class="section-label" id="m-label"></div>
+    <div class="m-sub-list" id="m-list"></div>
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-all" onclick="navAll()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      All
+    </button>
+    <button class="nav-item" id="nav-active" onclick="navFilter('active','nav-active')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      Active
+    </button>
+    <button class="nav-item" onclick="openAdd()">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+      Add
+    </button>
+    <button class="nav-item" id="nav-paused" onclick="navFilter('paused','nav-paused')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+      Paused
+    </button>
+    <button class="nav-item" onclick="openFilter()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+      Filter
+    </button>
+  </nav>
+</div>
+
+<!-- ═══ DESKTOP UI ═══ -->
+<div id="desktop-ui">
+  <div class="d-header">
+    <div>
+      <h1>SubTracker</h1>
+      <p>Track your recurring bills in one place</p>
+    </div>
+    <button class="d-btn-add" onclick="openAdd()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Add subscription
+    </button>
+  </div>
+  <div class="d-summary" id="d-summary"></div>
+  <div class="d-toolbar">
+    <div class="d-search-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" id="d-search" placeholder="Search subscriptions…" oninput="render()"/>
+    </div>
+    <select class="d-filter" id="d-status" onchange="render()">
+      <option value="all">All statuses</option>
+      <option value="active">Active</option>
+      <option value="trial">Trial</option>
+      <option value="paused">Paused</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+    <select class="d-filter" id="d-cycle" onchange="render()">
+      <option value="all">All billing</option>
+      <option value="monthly">Monthly</option>
+      <option value="yearly">Yearly</option>
+    </select>
+    <select class="d-filter" id="d-sort" onchange="render()">
+      <option value="renewal">Sort: renewal date</option>
+      <option value="name">Sort: name A–Z</option>
+      <option value="status">Sort: status</option>
+      <option value="cost-asc">Sort: cost ↑</option>
+      <option value="cost-desc">Sort: cost ↓</option>
+    </select>
+  </div>
+  <div class="d-section-label" id="d-label"></div>
+  <div class="d-list" id="d-list"></div>
+</div>
+
+<!-- ═══ SHARED SHEETS ═══ -->
+<!-- Form -->
+<div class="sheet-overlay" id="form-overlay" onclick="if(event.target===this)closeForm()">
+  <div class="sheet" id="form-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="form-title">Add Subscription</div>
+    <div id="form-body"></div>
+  </div>
+</div>
+
+<!-- Detail -->
+<div class="sheet-overlay" id="detail-overlay" onclick="if(event.target===this)closeDetail()">
+  <div class="sheet" id="detail-sheet"></div>
+</div>
+
+<!-- Filter -->
+<div class="sheet-overlay" id="filter-overlay" onclick="if(event.target===this)closeFilter()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Filter & Sort</div>
+    <div class="filter-section">
+      <div class="filter-section-label">Status</div>
+      <div class="option-pills" id="fp-status">
+        <button class="opt-pill active" data-val="all" onclick="pillClick(this)">All</button>
+        <button class="opt-pill" data-val="active" onclick="pillClick(this)">Active</button>
+        <button class="opt-pill" data-val="trial" onclick="pillClick(this)">Trial</button>
+        <button class="opt-pill" data-val="paused" onclick="pillClick(this)">Paused</button>
+        <button class="opt-pill" data-val="cancelled" onclick="pillClick(this)">Cancelled</button>
+      </div>
+    </div>
+    <div class="filter-section">
+      <div class="filter-section-label">Billing</div>
+      <div class="option-pills" id="fp-cycle">
+        <button class="opt-pill active" data-val="all" onclick="pillClick(this)">All</button>
+        <button class="opt-pill" data-val="monthly" onclick="pillClick(this)">Monthly</button>
+        <button class="opt-pill" data-val="yearly" onclick="pillClick(this)">Yearly</button>
+      </div>
+    </div>
+    <div class="filter-section">
+      <div class="filter-section-label">Sort by</div>
+      <div class="option-pills" id="fp-sort">
+        <button class="opt-pill active" data-val="renewal" onclick="pillClick(this)">Renewal date</button>
+        <button class="opt-pill" data-val="name" onclick="pillClick(this)">Name A–Z</button>
+        <button class="opt-pill" data-val="status" onclick="pillClick(this)">Status</button>
+        <button class="opt-pill" data-val="cost-asc" onclick="pillClick(this)">Cost ↑</button>
+        <button class="opt-pill" data-val="cost-desc" onclick="pillClick(this)">Cost ↓</button>
+      </div>
+    </div>
+    <button class="btn-apply" onclick="applyFilter()">Apply</button>
+  </div>
+</div>
+
+<!-- iOS tip -->
+<div id="ios-tip">
+  <div style="font-size:14px;font-weight:600;color:#f0f0f8;margin-bottom:4px">Add to Home Screen</div>
+  <div style="font-size:13px;color:#8888aa">Tap <strong style="color:#a855f7">Share ⎋</strong> then <strong style="color:#a855f7">"Add to Home Screen"</strong></div>
+  <button onclick="document.getElementById('ios-tip').style.display='none';localStorage.setItem('ios-tip','1')" style="margin-top:10px;height:32px;padding:0 16px;background:none;border:1px solid rgba(255,255,255,0.15);border-radius:16px;color:#8888aa;font-family:Inter,sans-serif;font-size:13px;cursor:pointer">Got it</button>
+</div>
+
+<script>
+// ── BRAND SVGS ────────────────────────────────────────────────────────────
+const BRAND_SVGS={
+  'Netflix':`<svg viewBox="0 0 90 26" xmlns="http://www.w3.org/2000/svg"><path d="M0 0v26l7.2-2.08V15.2l7.6 9.28 4.64-1.34-7.2-8.8L19 0h-4.64L7.2 10.8V0zm23.4 0v23.96l4.64-.67V0zm6.88 0v23.08l4.64-.67V5.2l5.52 7.6 4.64-.67V0h-4.64v7.08L35.28 0zM51 0v22.2l4.64-.67v-7.6l5.52 8.27 4.64-1.34-5.32-7.98L66.3 0h-4.64L56.6 7.08 51 0z" fill="#E50914"/><path d="M68.7 0v21.32l4.64-.67V5.2h5.52V0z" fill="#E50914"/></svg>`,
+  'Spotify':`<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="50" fill="#1DB954"/><path d="M72 65.5c-1 0-1.6-.3-2.4-.8-6.4-3.9-14.4-5.9-22.7-5.9-4.7 0-9.5.7-14 1.7-.8.2-1.8.5-2.5.5-2 0-3.2-1.5-3.2-3.2 0-2 1.2-3 2.7-3.4 5.3-1.4 11-2.1 17.1-2.1 9.4 0 18.5 2.3 25.8 6.7 1.2.7 1.9 1.6 1.9 3.1 0 1.8-1.5 3.4-2.7 3.4zm4.7-12.1c-1.2 0-2-.5-2.7-.9-7.1-4.4-17.4-7.1-28-7.1-5.6 0-10.6.8-14.4 1.8-1.1.3-1.6.5-2.5.5-2.2 0-4-1.8-4-4 0-2.3 1.3-3.7 3.1-4.2 4.9-1.4 10.4-2.4 17.9-2.4 11.6 0 23.3 3 32.2 8.4 1.5.9 2.4 2 2.4 4 0 2.2-1.8 3.9-4 3.9zm5.3-12.7c-1.2 0-1.9-.3-2.8-.9-7.6-4.7-19.5-7.8-31.6-7.8-6.2 0-12.7.8-18.3 2.3-.9.2-2 .6-3 .6-2.7 0-4.9-2.2-4.9-4.9 0-2.8 1.6-4.4 3.6-5 6.2-1.8 13.2-2.8 22.6-2.8 14.9 0 28.6 3.8 39.4 10.3 1.7 1 2.8 2.4 2.8 4.9 0 2.7-2.2 4.8-5.7 4.8" fill="#fff"/></svg>`,
+  'YouTube Premium':`<svg viewBox="0 0 90 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.6 0 6.6 11.5 2.6 0H0l6 16.2v8.2H8.9v-8.2L15 0zm7.7 21.3c3.2 0 5.4-2.3 5.4-5.8v-2.8c0-3.5-2.2-5.8-5.4-5.8s-5.4 2.3-5.4 5.8v2.8c0 3.5 2.3 5.8 5.4 5.8zm-2.7-8.8c0-2 1-3.2 2.7-3.2s2.7 1.2 2.7 3.2v3.2c0 2-1 3.2-2.7 3.2s-2.7-1.2-2.7-3.2zm17 8.5V7.3h-2.5v10c0 1.4-.6 2-1.7 2-1.1 0-2.2-.9-2.2-2.4V7.3H24V19c0 1.7.9 3 3.2 3 1.6 0 2.6-.7 3.3-1.8v1.6h2.1zm7-13.8v2.5c-.2 0-.4-.1-.7-.1-1.6 0-2.7 1-2.7 3v7.8h-2.6V7.3h2.5v1.6c.6-1.2 1.7-1.8 3.1-1.8.1 0 .3.1.4.1z" fill="#FF0000"/></svg>`,
+  'Disney+':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#113CCF"/><text x="50" y="30" font-family="Arial Black,sans-serif" font-size="21" font-weight="900" fill="white" text-anchor="middle" letter-spacing="-1">Disney+</text></svg>`,
+  'Amazon Prime':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#00A8E1"/><text x="50" y="19" font-family="Arial,sans-serif" font-size="13" font-weight="700" fill="white" text-anchor="middle">prime</text><text x="50" y="34" font-family="Arial,sans-serif" font-size="11" fill="white" text-anchor="middle">video</text></svg>`,
+  'Apple TV+':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#000"/><text x="50" y="29" font-family="Helvetica Neue,Arial,sans-serif" font-size="15" fill="white" text-anchor="middle">Apple TV+</text></svg>`,
+  'Binge':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bng" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7B2FBE"/><stop offset="100%" stop-color="#E8421C"/></linearGradient></defs><rect width="100" height="44" rx="6" fill="url(#bng)"/><text x="50" y="31" font-family="Arial Black,sans-serif" font-size="23" font-weight="900" fill="white" text-anchor="middle" letter-spacing="2">BiNGE</text></svg>`,
+  'Stan':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#0072FF"/><text x="50" y="32" font-family="Arial Black,sans-serif" font-size="28" font-weight="900" fill="white" text-anchor="middle" letter-spacing="3">Stan.</text></svg>`,
+  'Kayo Sports':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#00B140"/><text x="50" y="30" font-family="Arial Black,sans-serif" font-size="22" font-weight="900" fill="white" text-anchor="middle" letter-spacing="2">KAYO</text></svg>`,
+  'Foxtel':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#1a1a1a"/><text x="50" y="30" font-family="Arial Black,sans-serif" font-size="20" font-weight="900" fill="#FF6600" text-anchor="middle" letter-spacing="2">FOXTEL</text></svg>`,
+  'Paramount+':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#0064FF"/><text x="50" y="21" font-family="Arial Black,sans-serif" font-size="11" font-weight="900" fill="white" text-anchor="middle" letter-spacing="1">PARAMOUNT</text><text x="50" y="37" font-family="Arial Black,sans-serif" font-size="16" font-weight="900" fill="#FFD700" text-anchor="middle">+</text></svg>`,
+  'HBO Max':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#002BE7"/><text x="50" y="30" font-family="Arial Black,sans-serif" font-size="22" font-weight="900" fill="white" text-anchor="middle" letter-spacing="2">Max</text></svg>`,
+  'Apple Music':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="am" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FC5C7D"/><stop offset="100%" stop-color="#6A3093"/></linearGradient></defs><rect width="100" height="44" rx="6" fill="url(#am)"/><text x="50" y="20" font-family="Arial,sans-serif" font-size="11" fill="white" text-anchor="middle">Apple</text><text x="50" y="34" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="white" text-anchor="middle">Music</text></svg>`,
+  'iCloud+':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#1C8FFF"/><text x="50" y="21" font-family="Arial,sans-serif" font-size="12" fill="white" text-anchor="middle">iCloud</text><text x="50" y="36" font-family="Arial Black,sans-serif" font-size="14" font-weight="900" fill="white" text-anchor="middle">+</text></svg>`,
+  'Google One':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#fff" stroke="#ddd" stroke-width="1"/><text x="50" y="20" font-family="Arial,sans-serif" font-size="10" fill="#555" text-anchor="middle">Google</text><text x="50" y="35" font-family="Arial Black,sans-serif" font-size="14" font-weight="900" fill="#1A73E8" text-anchor="middle">One</text></svg>`,
+  'Dropbox':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#0061FF"/><text x="50" y="29" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="white" text-anchor="middle">Dropbox</text></svg>`,
+  'Adobe CC':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#FF0000"/><text x="50" y="21" font-family="Arial,sans-serif" font-size="11" fill="white" text-anchor="middle">Adobe</text><text x="50" y="35" font-family="Arial Black,sans-serif" font-size="10" font-weight="900" fill="white" text-anchor="middle">Creative Cloud</text></svg>`,
+  'Figma':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#1E1E1E"/><text x="50" y="30" font-family="Arial,sans-serif" font-size="20" font-weight="700" fill="white" text-anchor="middle">figma</text></svg>`,
+  'Canva':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#00C4CC"/><text x="50" y="30" font-family="Arial Black,sans-serif" font-size="22" font-weight="900" fill="white" text-anchor="middle">Canva</text></svg>`,
+  'ChatGPT':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#0D0D0D"/><circle cx="22" cy="22" r="13" fill="none" stroke="#10A37F" stroke-width="2.5"/><path d="M16 22c0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6" stroke="#10A37F" stroke-width="2.5" fill="none" stroke-linecap="round"/><text x="60" y="20" font-family="Arial,sans-serif" font-size="11" fill="#10A37F" text-anchor="middle">ChatGPT</text><text x="60" y="33" font-family="Arial,sans-serif" font-size="10" fill="white" text-anchor="middle" opacity="0.6">Plus</text></svg>`,
+  'ChatGPT Plus':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#0D0D0D"/><circle cx="22" cy="22" r="13" fill="none" stroke="#10A37F" stroke-width="2.5"/><path d="M16 22c0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6" stroke="#10A37F" stroke-width="2.5" fill="none" stroke-linecap="round"/><text x="60" y="20" font-family="Arial,sans-serif" font-size="11" fill="#10A37F" text-anchor="middle">ChatGPT</text><text x="60" y="33" font-family="Arial,sans-serif" font-size="10" fill="white" text-anchor="middle" opacity="0.6">Plus</text></svg>`,
+  'Claude ai':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#CC785C"/><text x="50" y="28" font-family="Georgia,serif" font-size="18" font-weight="400" fill="white" text-anchor="middle" letter-spacing="0.5">Claude</text></svg>`,
+  'Claude':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#CC785C"/><text x="50" y="28" font-family="Georgia,serif" font-size="18" font-weight="400" fill="white" text-anchor="middle" letter-spacing="0.5">Claude</text></svg>`,
+  'Claude Pro':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#CC785C"/><text x="50" y="22" font-family="Georgia,serif" font-size="15" font-weight="400" fill="white" text-anchor="middle" letter-spacing="0.5">Claude</text><text x="50" y="35" font-family="Arial,sans-serif" font-size="10" fill="rgba(255,255,255,0.75)" text-anchor="middle" letter-spacing="2">PRO</text></svg>`,
+  'Microsoft':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#fff"/><rect x="14" y="10" width="11" height="11" fill="#F25022"/><rect x="27" y="10" width="11" height="11" fill="#7FBA00"/><rect x="14" y="23" width="11" height="11" fill="#00A4EF"/><rect x="27" y="23" width="11" height="11" fill="#FFB900"/><text x="64" y="28" font-family="Arial,sans-serif" font-size="11" font-weight="600" fill="#737373" text-anchor="middle">Microsoft</text></svg>`,
+  'Microsoft 365':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#fff"/><rect x="10" y="9" width="10" height="10" fill="#F25022"/><rect x="22" y="9" width="10" height="10" fill="#7FBA00"/><rect x="10" y="21" width="10" height="10" fill="#00A4EF"/><rect x="22" y="21" width="10" height="10" fill="#FFB900"/><text x="65" y="21" font-family="Arial,sans-serif" font-size="10" font-weight="600" fill="#505050" text-anchor="middle">Microsoft</text><text x="65" y="34" font-family="Arial Black,sans-serif" font-size="13" font-weight="900" fill="#D83B01" text-anchor="middle">365</text></svg>`,
+  'Notion':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#fff" stroke="#ddd" stroke-width="1"/><text x="50" y="30" font-family="Arial Black,sans-serif" font-size="20" font-weight="900" fill="#000" text-anchor="middle">Notion</text></svg>`,
+  'GitHub':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#24292E"/><text x="50" y="29" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="white" text-anchor="middle">GitHub</text></svg>`,
+  'PlayStation Plus':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#00439C"/><text x="50" y="21" font-family="Arial,sans-serif" font-size="10" fill="white" text-anchor="middle">PlayStation</text><text x="50" y="36" font-family="Arial Black,sans-serif" font-size="14" font-weight="900" fill="#FFD700" text-anchor="middle">Plus</text></svg>`,
+  'Xbox Game Pass':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#107C10"/><text x="50" y="21" font-family="Arial,sans-serif" font-size="11" fill="white" text-anchor="middle">Xbox</text><text x="50" y="35" font-family="Arial,sans-serif" font-size="10" fill="white" text-anchor="middle">Game Pass</text></svg>`,
+  'LinkedIn':`<svg viewBox="0 0 100 44" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="44" rx="6" fill="#0A66C2"/><text x="50" y="29" font-family="Arial,sans-serif" font-size="15" font-weight="700" fill="white" text-anchor="middle">LinkedIn</text></svg>`,
+};
+
+const EMOJI_MAP={streaming:'🎬',music:'🎵',storage:'☁️',gaming:'🎮',news:'📰',fitness:'💪',productivity:'📋',design:'🎨',finance:'💰',other:'📦'};
+const CATEGORIES=Object.keys(EMOJI_MAP);
+
+const SERVICE_LIBRARY=[
+  {name:'Netflix',emoji:'🎬',category:'streaming',url:'https://www.netflix.com/au/login'},
+  {name:'Stan',emoji:'🎬',category:'streaming',url:'https://www.stan.com.au/account'},
+  {name:'Disney+',emoji:'🎬',category:'streaming',url:'https://www.disneyplus.com/account'},
+  {name:'Amazon Prime',emoji:'🎬',category:'streaming',url:'https://www.primevideo.com/settings'},
+  {name:'Apple TV+',emoji:'🎬',category:'streaming',url:'https://tv.apple.com'},
+  {name:'Binge',emoji:'🎬',category:'streaming',url:'https://binge.com.au/account'},
+  {name:'Kayo Sports',emoji:'🏅',category:'streaming',url:'https://kayosports.com.au/account'},
+  {name:'Foxtel',emoji:'📺',category:'streaming',url:'https://www.foxtel.com.au/got/account.html'},
+  {name:'Paramount+',emoji:'🎬',category:'streaming',url:'https://www.paramountplus.com/account/'},
+  {name:'YouTube Premium',emoji:'▶️',category:'streaming',url:'https://www.youtube.com/paid_memberships'},
+  {name:'HBO Max',emoji:'🎬',category:'streaming',url:'https://www.max.com/account/subscription'},
+  {name:'Spotify',emoji:'🎵',category:'music',url:'https://www.spotify.com/au/account/overview/'},
+  {name:'Apple Music',emoji:'🎵',category:'music',url:'https://music.apple.com'},
+  {name:'Tidal',emoji:'🎵',category:'music',url:'https://account.tidal.com'},
+  {name:'iCloud+',emoji:'☁️',category:'storage',url:'https://appleid.apple.com'},
+  {name:'Google One',emoji:'☁️',category:'storage',url:'https://one.google.com'},
+  {name:'Dropbox',emoji:'☁️',category:'storage',url:'https://www.dropbox.com/account/plan'},
+  {name:'OneDrive',emoji:'☁️',category:'storage',url:'https://onedrive.live.com'},
+  {name:'Adobe CC',emoji:'🎨',category:'design',url:'https://account.adobe.com/plans'},
+  {name:'Figma',emoji:'🎨',category:'design',url:'https://www.figma.com/settings'},
+  {name:'Canva',emoji:'🎨',category:'design',url:'https://www.canva.com/settings/purchase-history'},
+  {name:'ChatGPT Plus',emoji:'🤖',category:'productivity',url:'https://chatgpt.com/#settings/Subscription'},
+  {name:'ChatGPT',emoji:'🤖',category:'productivity',url:'https://chatgpt.com/#settings/Subscription'},
+  {name:'Claude ai',emoji:'🤖',category:'productivity',url:'https://claude.ai/settings/billing'},
+  {name:'Claude',emoji:'🤖',category:'productivity',url:'https://claude.ai/settings/billing'},
+  {name:'Claude Pro',emoji:'🤖',category:'productivity',url:'https://claude.ai/settings/billing'},
+  {name:'Microsoft',emoji:'💼',category:'productivity',url:'https://account.microsoft.com/services'},
+  {name:'Microsoft 365',emoji:'📋',category:'productivity',url:'https://account.microsoft.com/services'},
+  {name:'Notion',emoji:'📋',category:'productivity',url:'https://www.notion.so/profile/billing'},
+  {name:'GitHub',emoji:'💻',category:'productivity',url:'https://github.com/settings/billing'},
+  {name:'PlayStation Plus',emoji:'🎮',category:'gaming',url:'https://www.playstation.com/en-au/ps-store/my-account/'},
+  {name:'Xbox Game Pass',emoji:'🎮',category:'gaming',url:'https://account.microsoft.com/services'},
+  {name:'Nintendo Online',emoji:'🎮',category:'gaming',url:'https://accounts.nintendo.com'},
+  {name:'The Australian',emoji:'📰',category:'news',url:'https://www.theaustralian.com.au/account/subscription'},
+  {name:'AFR',emoji:'📰',category:'news',url:'https://www.afr.com/account'},
+  {name:'LinkedIn',emoji:'💼',category:'other',url:'https://www.linkedin.com/premium/manage'},
+  {name:'Custom…',emoji:'📦',category:'other',url:''},
+];
+
+// ── DATA ──────────────────────────────────────────────────────────────────
+const MY_SUBS=[
+  {id:1, name:'Netflix',        emoji:'🎬',category:'streaming',   price:22.99, cycle:'monthly',status:'active',   startDate:'2026-06-03',paymentMethod:'Mastercard 6156',url:'https://www.netflix.com/au/login',          notes:'Premium plan + 1 extra member.'},
+  {id:2, name:'YouTube Premium',emoji:'▶️',category:'streaming',   price:39.99, cycle:'monthly',status:'active',   startDate:'2026-06-05',paymentMethod:'EWS AMEX 1006',  url:'https://www.youtube.com/paid_memberships',  notes:'Family membership.'},
+  {id:3, name:'Disney+',        emoji:'🎬',category:'streaming',   price:9.99,  cycle:'monthly',status:'active',   startDate:'2026-06-04',paymentMethod:'',               url:'https://www.disneyplus.com/account',        notes:'Standard with Ads.'},
+  {id:4, name:'Stan',           emoji:'🎬',category:'streaming',   price:17.00, cycle:'monthly',status:'cancelled',startDate:'2026-06-15',paymentMethod:'Mastercard 6156', url:'https://www.stan.com.au/account',           notes:'Standard plan. Cancelled.'},
+  {id:5, name:'HBO Max',        emoji:'🎬',category:'streaming',   price:159.99,cycle:'yearly', status:'active',   startDate:'2026-06-01',paymentMethod:'PayPal',          url:'https://www.max.com/account/subscription',  notes:'Standard yearly. Billed via WarnerMedia.'},
+  {id:6, name:'Paramount+',     emoji:'🎬',category:'streaming',   price:115.99,cycle:'yearly', status:'active',   startDate:'2026-06-01',paymentMethod:'',               url:'https://www.paramountplus.com/account/',    notes:'Standard Ad Free annual.'},
+  {id:7, name:'Binge',          emoji:'🎬',category:'streaming',   price:10.00, cycle:'monthly',status:'cancelled',startDate:'2026-09-25',paymentMethod:'EWS AMEX',        url:'https://binge.com.au/account',              notes:'Cancelled.'},
+  {id:8, name:'Amazon Prime',   emoji:'🎬',category:'streaming',   price:9.99,  cycle:'monthly',status:'cancelled',startDate:'',          paymentMethod:'',               url:'https://www.primevideo.com/settings',       notes:'No active subscription.'},
+  {id:9, name:'Claude ai',      emoji:'🤖',category:'productivity',price:30.91, cycle:'monthly',status:'active',   startDate:'2026-05-11',paymentMethod:'EWS AMEX',        url:'https://claude.ai/settings/billing',        notes:'Pro'},
+  {id:10,name:'Microsoft 365',  emoji:'📋',category:'productivity',price:23.76, cycle:'monthly',status:'active',   startDate:'2026-05-27',paymentMethod:'',               url:'https://account.microsoft.com/services',   notes:'Business Standard'},
+  {id:11,name:'ChatGPT',        emoji:'🤖',category:'productivity',price:670.00,cycle:'yearly', status:'active',   startDate:'2025-08-31',paymentMethod:'EWS AMEX',        url:'https://chatgpt.com/#settings/Subscription',notes:'2 Seats - Dave & Ivy'},
+  {id:12,name:'iCloud+',        emoji:'☁️',category:'storage',     price:14.99, cycle:'monthly',status:'active',   startDate:'2026-06-20',paymentMethod:'EWS AMEX',        url:'https://appleid.apple.com',                notes:''},
+];
+let subs=JSON.parse(localStorage.getItem('subs')||'null')||MY_SUBS;
+let nextId=subs.length?Math.max(...subs.map(s=>s.id))+1:1;
+let editId=null,selectedService=null;
+let filterStatus='all',filterCycle='all',sortBy='renewal';
+
+function save(){localStorage.setItem('subs',JSON.stringify(subs))}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────
+function isMobile(){return window.innerWidth<700}
+function nextRenewalDate(sd,cy){
+  if(!sd)return null;const now=new Date();now.setHours(0,0,0,0);
+  let d=new Date(sd);
+  if(cy==='yearly'){while(d<=now)d.setFullYear(d.getFullYear()+1)}
+  else{while(d<=now)d.setMonth(d.getMonth()+1)}
+  return d;
+}
+function daysUntil(d){if(!d)return 9999;const n=new Date();n.setHours(0,0,0,0);return Math.ceil((d-n)/86400000)}
+function toMonthly(s){return s.cycle==='yearly'?s.price/12:s.price}
+function fmtDate(d){return d?d.toLocaleDateString('en-AU',{month:'short',day:'numeric'}):'—'}
+function logoHtml(name,emoji){const svg=BRAND_SVGS[name];return svg||`<span class="icon-fallback">${emoji||'📦'}</span>`}
+function getSvc(name){return SERVICE_LIBRARY.find(s=>s.name.toLowerCase()===name.toLowerCase())||null}
+
+function nextPayHtml(s){
+  if(s.status==='paused'||s.status==='cancelled')
+    return`<div class="next-pay next-pay-paused"><span class="next-pay-count">${s.status}</span></div>`;
+  if(!s.startDate)
+    return`<div class="next-pay next-pay-paused"><span class="next-pay-count">no date</span></div>`;
+  const rd=nextRenewalDate(s.startDate,s.cycle),days=daysUntil(rd);
+  let cls,cnt;
+  if(days===0){cls='urgent';cnt='today'}
+  else if(days<=3){cls='urgent';cnt=`in ${days}d`}
+  else if(days<=7){cls='soon';cnt=`in ${days}d`}
+  else if(days<=30){cls='ok';cnt=`in ${days}d`}
+  else{cls='far';cnt=`in ${days}d`}
+  return`<div class="next-pay next-pay-${cls}">$${s.price.toFixed(2)} · ${fmtDate(rd)}<span class="next-pay-count">${cnt}</span></div>`;
+}
+
+function badgeHtml(status){
+  const m={active:'badge-active',trial:'badge-trial',paused:'badge-paused',cancelled:'badge-cancelled'};
+  return`<span class="badge ${m[status]||'badge-paused'}">${status}</span>`;
+}
+
+// ── SUMMARY ───────────────────────────────────────────────────────────────
+function renderSummary(){
+  const active=subs.filter(s=>s.status==='active'||s.status==='trial');
+  const monthly=active.reduce((a,s)=>a+toMonthly(s),0);
+  const yearly=active.reduce((a,s)=>a+(s.cycle==='yearly'?s.price:s.price*12),0);
+  const dueSoon=active.filter(s=>{const d=daysUntil(nextRenewalDate(s.startDate,s.cycle));return d>=0&&d<=7}).length;
+  const html=`
+    <div class="metric"><div class="metric-label">Monthly</div><div class="metric-value">$${monthly.toFixed(2)}</div><div class="metric-sub">${active.length} active</div></div>
+    <div class="metric"><div class="metric-label">Annual</div><div class="metric-value">$${Math.round(yearly).toLocaleString()}</div><div class="metric-sub">excl. paused</div></div>
+    <div class="metric"><div class="metric-label">Due soon</div><div class="metric-value">${dueSoon}</div><div class="metric-sub">within 7 days</div></div>`;
+  const ms=document.getElementById('m-summary'),ds=document.getElementById('d-summary');
+  if(ms)ms.innerHTML=html;if(ds)ds.innerHTML=html;
+}
+
+// ── FILTERED LIST ─────────────────────────────────────────────────────────
+function getFiltered(){
+  const mq=document.getElementById('m-search')?.value.toLowerCase()||'';
+  const dq=document.getElementById('d-search')?.value.toLowerCase()||'';
+  const q=isMobile()?mq:dq;
+  const fs=isMobile()?filterStatus:(document.getElementById('d-status')?.value||'all');
+  const fc=isMobile()?filterCycle:(document.getElementById('d-cycle')?.value||'all');
+  const sb=isMobile()?sortBy:(document.getElementById('d-sort')?.value||'renewal');
+  const STATUS_ORDER={active:0,trial:1,paused:2,cancelled:3};
+  return subs.filter(s=>
+    (!q||s.name.toLowerCase().includes(q)||(s.paymentMethod||'').toLowerCase().includes(q))&&
+    (fs==='all'||s.status===fs)&&(fc==='all'||s.cycle===fc)
+  ).sort((a,b)=>{
+    if(sb==='name')return a.name.localeCompare(b.name);
+    if(sb==='status'){const d=(STATUS_ORDER[a.status]??9)-(STATUS_ORDER[b.status]??9);return d||a.name.localeCompare(b.name)}
+    if(sb==='cost-asc')return toMonthly(a)-toMonthly(b);
+    if(sb==='cost-desc')return toMonthly(b)-toMonthly(a);
+    return daysUntil(nextRenewalDate(a.startDate,a.cycle))-daysUntil(nextRenewalDate(b.startDate,b.cycle));
+  });
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────
+function render(){
+  renderSummary();
+  const filtered=getFiltered();
+  const count=`${filtered.length} subscription${filtered.length!==1?'s':''}`;
+  const emptyHtml=`<div class="empty">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="opacity:.35"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+    <div style="font-size:16px;font-weight:600;color:#f0f0f8;margin-bottom:6px">No subscriptions yet</div>
+    <div style="font-size:13px;color:#55556a">Tap + to add your first one</div></div>`;
+
+  // Mobile
+  const ml=document.getElementById('m-label'),mlist=document.getElementById('m-list');
+  if(ml)ml.textContent=filtered.length?count:'';
+  if(mlist){
+    mlist.innerHTML=filtered.length?filtered.map(s=>`
+      <div class="m-card" onclick="openDetail(${s.id})">
+        <div class="sub-icon" style="width:48px;height:48px">${logoHtml(s.name,s.emoji||EMOJI_MAP[s.category])}</div>
+        <div class="m-card-body">
+          <div class="m-card-name">${s.name}</div>
+          <div class="m-card-meta">${s.category}${s.paymentMethod?` · 💳 ${s.paymentMethod}`:''}</div>
+          ${nextPayHtml(s)}
+        </div>
+        <div class="m-card-right">
+          <div>
+            <div class="price-main">${s.cycle==='yearly'?`$${s.price.toFixed(2)}/yr`:`$${s.price.toFixed(2)}/mo`}</div>
+            ${s.cycle==='yearly'?`<div class="price-per">$${toMonthly(s).toFixed(2)}/mo</div>`:''}
+          </div>
+          ${badgeHtml(s.status)}
+        </div>
+      </div>`).join(''):emptyHtml;
+  }
+
+  // Desktop
+  const dl=document.getElementById('d-label'),dlist=document.getElementById('d-list');
+  if(dl)dl.textContent=filtered.length?count:'';
+  if(dlist){
+    dlist.innerHTML=filtered.length?filtered.map(s=>`
+      <div class="d-card" onclick="openDetail(${s.id})">
+        <div class="sub-icon" style="width:46px;height:46px">${logoHtml(s.name,s.emoji||EMOJI_MAP[s.category])}</div>
+        <div class="d-card-info">
+          <div class="d-card-name">${s.name}</div>
+          <div class="d-card-meta">${s.category}</div>
+          ${s.paymentMethod?`<div class="d-card-pay">💳 ${s.paymentMethod}</div>`:''}
+          ${nextPayHtml(s)}
+        </div>
+        <div class="d-card-right">
+          <div class="d-price">
+            <div class="price-main">${s.cycle==='yearly'?`$${s.price.toFixed(2)}/yr`:`$${s.price.toFixed(2)}/mo`}</div>
+            ${s.cycle==='yearly'?`<div class="price-per">$${toMonthly(s).toFixed(2)}/mo</div>`:''}
+          </div>
+          ${badgeHtml(s.status)}
+          <button class="d-icon-btn" onclick="event.stopPropagation();openEdit(${s.id})" title="Edit">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          ${s.url?`<a class="d-icon-link" href="${s.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Manage">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </a>`:''}
+        </div>
+      </div>`).join(''):emptyHtml;
+  }
+}
+
+// ── DETAIL SHEET ──────────────────────────────────────────────────────────
+function openDetail(id){
+  const s=subs.find(x=>x.id===id);if(!s)return;
+  const rd=nextRenewalDate(s.startDate,s.cycle);
+  document.getElementById('detail-sheet').innerHTML=`
+    <div class="sheet-handle"></div>
+    <div class="detail-header">
+      <div class="detail-icon">${logoHtml(s.name,s.emoji||EMOJI_MAP[s.category])}</div>
+      <div><div class="detail-name">${s.name}</div><div class="detail-cat">${s.category}</div></div>
+    </div>
+    <div class="detail-row"><span class="detail-label">Price</span><span class="detail-value">${s.cycle==='yearly'?`$${s.price.toFixed(2)}/yr ($${toMonthly(s).toFixed(2)}/mo)`:`$${s.price.toFixed(2)}/mo`}</span></div>
+    <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${badgeHtml(s.status)}</span></div>
+    <div class="detail-row"><span class="detail-label">Next payment</span><span class="detail-value">${rd?`$${s.price.toFixed(2)} on ${fmtDate(rd)}`:'—'}</span></div>
+    <div class="detail-row"><span class="detail-label">Payment method</span><span class="detail-value">${s.paymentMethod||'—'}</span></div>
+    <div class="detail-row"><span class="detail-label">Billing</span><span class="detail-value">${s.cycle}</span></div>
+    <div class="detail-row"><span class="detail-label">Billing start</span><span class="detail-value">${s.startDate||'—'}</span></div>
+    ${s.notes?`<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" style="font-style:italic">${s.notes}</span></div>`:''}
+    <div class="detail-actions">
+      <button class="btn-edit" onclick="closeDetail();openEdit(${s.id})">Edit</button>
+      ${s.url?`<a class="btn-link" href="${s.url}" target="_blank" rel="noopener"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>Manage</a>`:''}
+    </div>`;
+  document.getElementById('detail-overlay').classList.add('open');
+}
+function closeDetail(){document.getElementById('detail-overlay').classList.remove('open')}
+
+// ── FORM SHEET ────────────────────────────────────────────────────────────
+function openAdd(){editId=null;selectedService=null;showForm()}
+function openEdit(id){editId=id;selectedService=null;showForm(subs.find(s=>s.id===id))}
+
+function tileHtml(){
+  return SERVICE_LIBRARY.map((svc,i)=>{
+    const svg=BRAND_SVGS[svc.name];
+    const icon=svg?`<div class="tile-brand-svg">${svg}</div>`:`<span class="tile-emoji">${svc.emoji}</span>`;
+    return`<div class="service-tile" data-idx="${i}" onclick="pickSvc(${i})">${icon}<span>${svc.name}</span></div>`;
+  }).join('');
+}
+
+function pickSvc(idx){
+  selectedService=idx;
+  document.querySelectorAll('.service-tile').forEach((t,i)=>t.classList.toggle('selected',i===idx));
+  const svc=SERVICE_LIBRARY[idx];
+  if(svc.name!=='Custom…'){
+    const n=document.getElementById('f-name');if(n&&!n.value)n.value=svc.name;
+    const c=document.getElementById('f-cat');if(c)c.value=svc.category;
+    const u=document.getElementById('f-url');if(u&&!u.value&&svc.url)u.value=svc.url;
+  }
+  document.getElementById('f-name').focus();
+}
+
+function updRenew(){
+  const sd=document.getElementById('f-start')?.value;
+  const cy=document.getElementById('f-cycle')?.value||'monthly';
+  const el=document.getElementById('renew-preview');if(!el)return;
+  if(!sd){el.textContent='Enter start date to calculate';return}
+  const rd=nextRenewalDate(sd,cy),d=daysUntil(rd);
+  el.textContent=rd?`${fmtDate(rd)} (in ${d} day${d!==1?'s':''})`:'—';
+}
+
+function showForm(s={}){
+  document.getElementById('form-title').textContent=editId?'Edit Subscription':'Add Subscription';
+  let preIdx=-1;
+  if(s.name)preIdx=SERVICE_LIBRARY.findIndex(sv=>sv.name===s.name);
+  document.getElementById('form-body').innerHTML=`
+    <div style="margin-bottom:14px">
+      <div class="filter-section-label" style="margin-bottom:8px">Quick pick a service</div>
+      <div class="service-grid">${tileHtml()}</div>
+    </div>
+    <div class="or-divider">or enter manually</div>
+    <div class="form-row"><label>Name</label><input id="f-name" type="text" value="${s.name||''}" placeholder="e.g. Netflix" autocomplete="off"/></div>
+    <div class="form-grid">
+      <div class="form-row"><label>Price ($)</label><input id="f-price" type="number" min="0" step="0.01" value="${s.price||''}" placeholder="9.99" inputmode="decimal"/></div>
+      <div class="form-row"><label>Billing</label>
+        <select id="f-cycle" onchange="updRenew()">
+          <option value="monthly" ${s.cycle==='monthly'||!s.cycle?'selected':''}>Monthly</option>
+          <option value="yearly" ${s.cycle==='yearly'?'selected':''}>Yearly</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-row"><label>Category</label>
+        <select id="f-cat">${CATEGORIES.map(c=>`<option value="${c}" ${s.category===c?'selected':''}>${EMOJI_MAP[c]} ${c[0].toUpperCase()+c.slice(1)}</option>`).join('')}</select>
+      </div>
+      <div class="form-row"><label>Status</label>
+        <select id="f-status">
+          <option value="active" ${s.status==='active'||!s.status?'selected':''}>Active</option>
+          <option value="trial" ${s.status==='trial'?'selected':''}>Trial</option>
+          <option value="paused" ${s.status==='paused'?'selected':''}>Paused</option>
+          <option value="cancelled" ${s.status==='cancelled'?'selected':''}>Cancelled</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row"><label>Billing start date</label><input id="f-start" type="date" value="${s.startDate||''}" oninput="updRenew()"/></div>
+    <div class="form-row"><label>Next renewal (auto)</label><div class="renew-display" id="renew-preview">Enter start date to calculate</div></div>
+    <div class="form-row"><label>Payment method</label><input id="f-payment" type="text" value="${s.paymentMethod||''}" placeholder="e.g. ANZ Visa, PayPal"/></div>
+    <div class="form-row"><label>Website URL (optional)</label><input id="f-url" type="url" value="${s.url||''}" placeholder="https://..."/></div>
+    <div class="form-row"><label>Notes (optional)</label><input id="f-notes" type="text" value="${s.notes||''}" placeholder="e.g. Family plan"/></div>
+    <div class="sheet-actions">
+      ${editId?`<button class="btn-delete-s" onclick="deleteSub(${editId})">Delete</button>`:''}
+      <button class="btn-cancel-s" onclick="closeForm()">Cancel</button>
+      <button class="btn-save" onclick="saveSub()">Save</button>
+    </div>`;
+  if(preIdx>=0){document.querySelectorAll('.service-tile')[preIdx]?.classList.add('selected');selectedService=preIdx}
+  updRenew();
+  document.getElementById('form-overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('f-name')?.focus(),300);
+}
+
+function closeForm(){document.getElementById('form-overlay').classList.remove('open');selectedService=null}
+
+function saveSub(){
+  const name=document.getElementById('f-name').value.trim();
+  const price=parseFloat(document.getElementById('f-price').value);
+  if(!name||isNaN(price)||price<0){alert('Please enter a name and price.');return}
+  let emoji=null;
+  if(selectedService!==null)emoji=SERVICE_LIBRARY[selectedService]?.emoji;
+  else if(editId)emoji=subs.find(s=>s.id===editId)?.emoji;
+  if(!emoji)emoji=getSvc(name)?.emoji||null;
+  let url=document.getElementById('f-url').value.trim();
+  if(!url)url=getSvc(name)?.url||'';
+  const sub={
+    id:editId||nextId++,name,price,emoji,
+    cycle:document.getElementById('f-cycle').value,
+    category:document.getElementById('f-cat').value,
+    status:document.getElementById('f-status').value,
+    startDate:document.getElementById('f-start').value,
+    paymentMethod:document.getElementById('f-payment').value.trim(),
+    url,notes:document.getElementById('f-notes').value.trim(),
+  };
+  subs=editId?subs.map(s=>s.id===editId?sub:s):[...subs,sub];
+  save();closeForm();render();
+}
+
+function deleteSub(id){
+  if(!confirm('Delete this subscription?'))return;
+  subs=subs.filter(s=>s.id!==id);save();closeForm();closeDetail();render();
+}
+
+// ── FILTER SHEET ──────────────────────────────────────────────────────────
+function openFilter(){document.getElementById('filter-overlay').classList.add('open')}
+function closeFilter(){document.getElementById('filter-overlay').classList.remove('open')}
+
+function pillClick(el){
+  // deselect siblings in same group, select clicked
+  el.closest('.option-pills').querySelectorAll('.opt-pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function applyFilter(){
+  filterStatus=document.querySelector('#fp-status .opt-pill.active')?.dataset.val||'all';
+  filterCycle=document.querySelector('#fp-cycle .opt-pill.active')?.dataset.val||'all';
+  sortBy=doc
