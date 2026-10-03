@@ -942,7 +942,7 @@
 
   function openDiscover(prefer) {
     if (!DISC) { toast('Email discovery is not available in this build'); return; }
-    disc = { state: isNative() ? 'handoff' : 'choose', provider: prefer || '', session: null, items: [], email: '', cancelled: false, running: false, stats: null, editing: -1, error: '' };
+    disc = { state: isNative() ? 'handoff' : 'choose', provider: prefer || '', session: null, items: [], email: '', cancelled: false, running: false, stats: null, editing: -1, error: '', lastImport: null };
     renderDiscover();
     $('discover-overlay').classList.add('open');
     // warm up the sign-in SDKs now so the Connect tap can open the popup immediately
@@ -952,8 +952,10 @@
     disc.cancelled = true;
     if (disc.session && discProvider(disc.session.provider)) { try { discProvider(disc.session.provider).disconnect(disc.session); } catch {} }
     disc.session = null;
+    if (settings.pendingConnect) { settings.pendingConnect = ''; saveSettings(); }
     $('discover-overlay').classList.remove('open');
   }
+  const discoverOpen = () => { const o = $('discover-overlay'); return !!(o && o.classList.contains('open')); };
   const discWebUrl = () => (CFG.EDITION_URL || APP_URL || '') + ((CFG.EDITION_URL || APP_URL || '').includes('?') ? '&' : '?') + 'connect=1';
 
   function renderDiscover() {
@@ -967,7 +969,7 @@
       html = `
         <div class="sheet-title">✉️ Find subscriptions</div>
         <p class="disc-text">Connecting Gmail or Outlook happens in your phone's browser — Google and Microsoft don't allow their sign-in inside apps.</p>
-        <p class="disc-text">${u ? `You're signed in as <b>${esc(u.email)}</b>. Sign in with the same account in the browser and everything you import syncs straight back here.` : `<b>Sign in first</b> (Settings → Sign in) so what you import in the browser can sync back to this app.`}</p>
+        <p class="disc-text">${u ? `In the browser, sign in to SubTracker with your login (<b>${esc(u.email)}</b>) so the results sync back here — then connect <b>any</b> Gmail or Outlook mailboxes you like, as many as you want. They don't have to match your login.` : `<b>Sign in to SubTracker first</b> (Settings → Sign in) so what you import in the browser can sync back to this app. The mailboxes you scan can be any Gmail or Outlook accounts.`}</p>
         <button class="btn-primary btn-block" data-action="discover-open-web">Open in browser</button>
         <button class="btn-secondary btn-block" style="margin-top:10px" data-action="discover-paste">Paste a receipt email instead</button>
         ${privacy}`;
@@ -979,9 +981,12 @@
           <span class="disc-pmain"><b>${title}</b><small>${ready ? sub : 'Not set up yet — the app owner needs to add a client ID (see README)'}</small></span>
           <span class="disc-pstate">${ready ? 'Connect' : '—'}</span></button>`;
       };
+      const canSync = !!(window.Sync && window.Sync.configured);
       html = `
-        <div class="sheet-title">✉️ Find subscriptions</div>
-        <p class="disc-text">We look through the last 12 months of your inbox for receipts, renewals and trials, then show you what we found. Nothing is added until you tick it.</p>
+        <div class="sheet-title">✉️ ${mailboxes.length || disc.lastImport ? 'Connect a mailbox' : 'Find subscriptions'}</div>
+        ${disc.lastImport ? `<div class="auth-banner soft">✅ Added ${plural(disc.lastImport.n, 'subscription')}${disc.lastImport.email ? ` from <b>${esc(disc.lastImport.email)}</b>` : ''}. Bills land in another inbox? Connect it below.</div>` : ''}
+        <p class="disc-text">We look through the last 12 months of a mailbox for receipts, renewals and trials, then show you what we found — nothing is added until you tick it. Connect <b>any</b> Gmail or Outlook account, not just the one you use for SubTracker, and as many as you like: each subscription remembers which inbox it came from.</p>
+        ${canSync && !u ? `<div class="auth-banner soft">You're not signed in to SubTracker — what you import stays on this device only. <button class="link-btn inline" data-action="auth">Sign in</button> to sync it to your other devices.</div>` : ''}
         ${disc.error ? `<div class="auth-banner danger">${esc(disc.error)}</div>` : ''}
         <div class="disc-providers">
           ${card('gmail', '<svg width="22" height="22" viewBox="0 0 24 24"><path fill="#EA4335" d="M5 7.5v9h-.5A2.5 2.5 0 0 1 2 14V8.1c0-.9 1-1.4 1.7-.9L5 8.2z"/><path fill="#4285F4" d="M19 7.5v9h.5a2.5 2.5 0 0 0 2.5-2.5V8.1c0-.9-1-1.4-1.7-.9L19 8.2z"/><path fill="#FBBC04" d="M5 8.2 12 13l7-4.8V5.6c0-1.3-1.5-2-2.5-1.2L12 7.8 7.5 4.4C6.5 3.6 5 4.3 5 5.6z"/><path fill="#34A853" d="M5 7.5 12 12.4l7-4.9v2.1l-7 4.9-7-4.9z"/></svg>', 'Gmail', 'Google accounts (gmail.com and Google Workspace)')}
@@ -991,7 +996,8 @@
             <span class="disc-pmain"><b>iCloud, Yahoo, work mail…</b><small>Paste a receipt email — works with any mailbox</small></span>
             <span class="disc-pstate">Paste</span></button>
         </div>
-        ${mailboxes.length ? `<div class="disc-sub">Scanned before</div>${mailboxes.map(m => `<div class="set-row"><div class="set-row-main"><div class="set-row-label">${esc(m.email)}</div><div class="set-row-sub">${esc(m.provider === 'gmail' ? 'Gmail' : 'Outlook')} · last scan ${fmtIso((m.lastScanAt || '').slice(0, 10))} · ${plural(m.found || 0, 'subscription')} found</div></div><button class="link-btn" data-action="discover-connect" data-provider="${esc(m.provider)}" data-hint="${esc(m.email)}" ${discReady(m.provider) ? '' : 'disabled'}>Scan again</button><button class="link-btn danger" data-action="discover-forget" data-email="${esc(m.email)}">Forget</button></div>`).join('')}` : ''}
+        ${mailboxes.length ? `<div class="disc-sub">Mailboxes you've scanned</div>${mailboxes.map(m => `<div class="set-row"><div class="set-row-main"><div class="set-row-label">${esc(m.email)}</div><div class="set-row-sub">${esc(m.provider === 'gmail' ? 'Gmail' : 'Outlook')} · last scan ${fmtIso((m.lastScanAt || '').slice(0, 10))} · ${plural(m.found || 0, 'subscription')} found</div></div><button class="link-btn" data-action="discover-connect" data-provider="${esc(m.provider)}" data-hint="${esc(m.email)}" ${discReady(m.provider) ? '' : 'disabled'}>Scan again</button><button class="link-btn danger" data-action="discover-forget" data-email="${esc(m.email)}">Forget</button></div>`).join('')}<div class="disc-text small" style="margin-top:8px">Tap Gmail or Outlook above to add another mailbox — you'll get to pick the account.</div>` : ''}
+        ${disc.lastImport ? `<button class="btn-secondary btn-block" style="margin-top:14px" data-action="discover-cancel">Done</button>` : ''}
         ${privacy}`;
     } else if (disc.state === 'paste') {
       html = `
@@ -1066,7 +1072,7 @@
     try {
       // the popup must open straight from the tap — prepare() was already called when the sheet opened
       await p.prepare();
-      session = await p.connect({ loginHint: loginHint || '' });
+      session = await p.connect({ loginHint: loginHint || '', prompt: loginHint ? '' : 'select_account' });
     } catch (e) {
       if (/cancelled|popup_closed/i.test(e && e.message || '')) return;
       disc.error = (e && e.message) || 'Could not connect'; disc.state = 'choose'; renderDiscover(); return;
@@ -1110,10 +1116,11 @@
       if (!(sub.price > 0) && it.price == null) sub.price = 0;
       commit(sub); n++;
     }
-    closeDiscover();
     toast(`Added ${plural(n, 'subscription')}${disc.email ? ' from ' + disc.email : ''}`);
-    showView('home');
-    if (window.Sync && !window.Sync.user && n) setTimeout(() => maybePromptAuth(false), 1200);
+    disc.lastImport = { n, email: disc.email }; disc.items = []; disc.email = ''; disc.stats = null; disc.editing = -1; disc.error = '';
+    disc.state = isNative() ? 'handoff' : 'choose';
+    if (isNative()) { closeDiscover(); showView('home'); }
+    else renderDiscover();
   }
   // Resume after a Microsoft full-page sign-in (popup-blocked browsers)
   async function discoverResume() {
@@ -1539,7 +1546,7 @@
     }
     wire();
     if (window.Sync) {
-      window.Sync.on('onAuth', u => { if (!u) { listInfo = null; profile = null; } render(); if (u && settings.pendingInvite) setTimeout(applyPendingInvite, 400); });
+      window.Sync.on('onAuth', u => { if (!u) { listInfo = null; profile = null; } render(); if (discoverOpen()) renderDiscover(); if (u && settings.pendingInvite) setTimeout(applyPendingInvite, 400); });
       window.Sync.on('onStatus', st => { syncState = st; if (view === 'settings') renderSettings(); });
       window.Sync.on('onList', () => { listInfoFor = null; if (view === 'settings') renderSettings(); });
       window.Sync.init();
@@ -1551,6 +1558,8 @@
     scheduleNotifications();
     let connect = '';
     try { const u = new URL(location.href); connect = u.searchParams.get('connect') || ''; if (connect) history.replaceState(null, '', location.pathname + location.hash); } catch {}
+    if (connect && !isNative()) { settings.pendingConnect = connect; saveSettings(); }
+    else if (settings.pendingConnect && !isNative()) connect = settings.pendingConnect; // came back after signing in / a reload
     if (connect && !isNative()) { setTimeout(() => openDiscover(connect === '1' ? '' : connect), onboarding ? 0 : 300); }
     else if (!onboarding) maybePromptAuth(false);
     discoverResume();
