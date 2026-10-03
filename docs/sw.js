@@ -2,7 +2,7 @@
 // Strategy: stale-while-revalidate for our own files (fast load, updates
 // land on the next open). Network-only for Supabase and Google Fonts API.
 // Bump CACHE_VERSION whenever you deploy to force a clean refresh.
-const CACHE_VERSION = 'subtracker-v1';
+const CACHE_VERSION = 'subtracker-v2';
 const PRECACHE = ['./', './index.html', './app.css', './app.js', './brands.js', './sync.js', './config.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
