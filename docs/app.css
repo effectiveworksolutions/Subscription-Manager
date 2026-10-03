@@ -325,6 +325,7 @@ button{font-family:var(--font)}
 #review-overlay{z-index:225}
 #share-overlay{z-index:235}
 #age-overlay{z-index:240}
+#discover-overlay{z-index:228}
 .sheet.sheet-wide{max-width:640px}
 .sheet{background:var(--surface);border-radius:22px 22px 0 0;border:1px solid var(--border-strong);border-bottom:none;width:100%;max-width:600px;max-height:95vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 20px 20px;padding-bottom:calc(20px + var(--safe-b));box-shadow:0 -20px 60px rgba(0,0,0,.6);animation:slideUp .28s cubic-bezier(.34,1.2,.64,1)}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
@@ -438,3 +439,51 @@ button{font-family:var(--font)}
 .check-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--border);font-size:14px;color:var(--text);cursor:pointer;margin-top:4px}
 .check-row input{width:20px;height:20px;accent-color:var(--accent);flex-shrink:0}
 .btn-primary:disabled{opacity:.45;cursor:not-allowed}
+
+/* ── Find subscriptions from email ──────────────────────────────────── */
+.disc-text{font-size:14px;color:var(--text-muted);line-height:1.55;margin:0 0 14px}
+.disc-text.small{font-size:12px;color:var(--text-faint)}
+.disc-text b{color:var(--text)}
+.disc-providers{display:flex;flex-direction:column;gap:10px;margin:4px 0 16px}
+.disc-provider{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);text-align:left;cursor:pointer;font-family:var(--font);transition:border-color .15s,transform .1s}
+.disc-provider:active{transform:scale(.99)}
+.disc-provider:not(:disabled):hover,.disc-provider.hint{border-color:var(--accent-bright)}
+.disc-provider:disabled{opacity:.55;cursor:default}
+.disc-plogo{width:40px;height:40px;border-radius:11px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.disc-pmain{flex:1;min-width:0}
+.disc-pmain b{display:block;font-size:14px;font-weight:600}
+.disc-pmain small{display:block;font-size:12px;color:var(--text-faint);margin-top:2px;line-height:1.35}
+.disc-pstate{font-size:13px;color:var(--accent-text);font-weight:600;white-space:nowrap}
+.disc-privacy{font-size:12px;color:var(--text-faint);line-height:1.55;padding:12px 14px;border:1px dashed var(--border-strong);border-radius:var(--r);margin-top:14px}
+.disc-privacy a{color:var(--accent-text)}
+.disc-sub{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);margin:16px 0 4px}
+.disc-textarea{width:100%;min-height:180px;padding:12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface2);font-family:var(--font);font-size:14px;line-height:1.5;color:var(--text);outline:none;resize:vertical}
+.disc-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,58,237,.15)}
+.disc-email{font-family:var(--font);font-size:13px;letter-spacing:0;color:var(--text-muted);font-weight:500;display:block;margin-top:2px}
+.disc-progress{height:8px;border-radius:4px;background:var(--surface3);overflow:hidden;margin:6px 0 10px}
+.disc-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-bright));border-radius:4px;transition:width .3s}
+.disc-stage{font-size:14px;color:var(--text);margin-bottom:8px}
+.disc-summary{font-size:13px;color:var(--text-muted);margin:-8px 0 14px}
+.disc-list{display:flex;flex-direction:column;gap:8px}
+.disc-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;transition:border-color .15s}
+.disc-item.on{border-color:rgba(124,58,237,.45)}
+.disc-row{display:flex;align-items:center;gap:10px}
+.disc-check{position:relative;width:24px;height:24px;flex-shrink:0;cursor:pointer}
+.disc-check input{opacity:0;width:0;height:0;position:absolute}
+.disc-box{position:absolute;inset:0;border-radius:7px;border:1.5px solid var(--border-strong);background:var(--surface3);transition:background .15s,border-color .15s}
+.disc-box::after{content:'';position:absolute;left:8px;top:4px;width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);opacity:0}
+.disc-check input:checked+.disc-box{background:var(--accent);border-color:var(--accent)}
+.disc-check input:checked+.disc-box::after{opacity:1}
+.disc-icon{width:38px;height:38px}
+.disc-main{flex:1;min-width:0;cursor:pointer}
+.disc-name{font-size:14px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.disc-meta{font-size:12px;color:var(--text-muted);margin-top:2px;line-height:1.4}
+.disc-meta.faint,.faint{color:var(--text-faint)}
+.disc-badge{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:10px;background:var(--accent-light);color:var(--accent-text)}
+.disc-badge.warn{background:var(--warn-light);color:var(--warn)}
+.disc-badge.danger{background:var(--danger-light);color:var(--danger)}
+.disc-badge.muted{background:var(--surface3);color:var(--text-muted)}
+.disc-editor{margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.disc-editor .form-row{margin-bottom:10px}
+.disc-why{font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:2px}
+.disc-why b{color:var(--text)}

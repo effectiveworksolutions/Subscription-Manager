@@ -12,6 +12,7 @@
   const SERVICE_ALIASES = window.SERVICE_ALIASES || {};
   const GROUP_LABELS = window.GROUP_LABELS || {};
   const ADULT_CATS = window.ADULT_CATEGORIES || ['adult'];
+  const HAS_ADULT = SERVICE_LIBRARY.some(s => s.adult); // 18+ section only exists if the library ships adult entries
   const CATEGORIES = Object.keys(EMOJI_MAP);
   const CAT_COLORS = ['#a855f7', '#34d399', '#f59e0b', '#38bdf8', '#f472b6', '#fb923c', '#a3e635', '#22d3ee', '#e879f9', '#facc15', '#4ade80', '#94a3b8'];
   const DAY = 86400000;
@@ -193,6 +194,7 @@
     },
     setSubs: (arr, fromSync) => window.App.setAll(arr.concat(tombs), fromSync),
     logoErr, logoOk,
+    showDiscoverResults: (items, email) => { openDiscover(''); disc.state = 'results'; disc.items = items; disc.email = email || ''; disc.stats = { scanned: items.length }; renderDiscover(); },
   };
 
   // ── Notifications ────────────────────────────────────────────────────
@@ -717,6 +719,14 @@
           ${row('auth', 'Sign in or create account', 'Free · email and password')}`}
       </div>
 
+      ${window.Discover ? `
+      <div class="set-group">
+        <div class="set-group-title">Find subscriptions</div>
+        ${row('discover', 'Find subscriptions from your email', isNative() ? 'Gmail or Outlook · opens in your browser, syncs back here' : 'Connect Gmail or Outlook · we read the receipts, you pick what to add', '<span class="set-row-val accent">✉️</span>')}
+        ${row('discover-paste', 'Paste a receipt email', 'iCloud, Yahoo, work mail — any mailbox')}
+        ${(settings.mailboxes || []).length ? `<div class="set-row"><div class="set-row-main"><div class="set-row-label">Scanned mailboxes</div><div class="set-row-sub">${esc((settings.mailboxes || []).map(m => m.email).join(', '))}</div></div></div>` : ''}
+      </div>` : ''}
+
       ${canSync ? `
       <div class="set-group">
         <div class="set-group-title">Share & invite</div>
@@ -755,13 +765,13 @@
         ${row('test-notify', 'Send a test notification', notifyBlocked ? 'Unblock notifications in your browser first' : '')}
       </div>
 
-      <div class="set-group">
+      ${HAS_ADULT ? `<div class="set-group">
         <div class="set-group-title">Service picker</div>
         <div class="set-row">
           <div class="set-row-main"><div class="set-row-label">Show adults-only services</div><div class="set-row-sub">${settings.adultUnlocked ? 'Unlocked · 18+ confirmed on this device' : 'Hidden until you confirm you\'re 18 or older'}</div></div>
           <label class="toggle"><input type="checkbox" id="set-adult" ${settings.adultUnlocked ? 'checked' : ''}/><span class="track"></span></label>
         </div>
-      </div>
+      </div>` : ''}
 
       <div class="set-group">
         <div class="set-group-title">Your data</div>
@@ -772,7 +782,7 @@
         <input type="file" id="import-file" accept=".json,application/json" class="hidden"/>
       </div>
 
-      <div class="about"><b>SubTracker</b> v${esc(CFG.APP_VERSION || '1.1.0')}<br>Your data lives on your device${u ? (shared ? ', in your private cloud account and with the people you share your list with' : ' and in your private cloud account') : ''}. Nobody else can see it.<br><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></div>
+      <div class="about"><b>SubTracker${CFG.EDITION === '18plus' ? ' 18+' : ''}</b> v${esc(CFG.APP_VERSION || '1.1.0')}<br>Your data lives on your device${u ? (shared ? ', in your private cloud account and with the people you share your list with' : ' and in your private cloud account') : ''}. Nobody else can see it.<br><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></div>
       </div>`;
     if ($('m-settings')) $('m-settings').innerHTML = html;
     if ($('d-settings')) $('d-settings').innerHTML = html;
@@ -828,11 +838,11 @@
 
   function tileHtml() {
     const q = tileQuery.toLowerCase().trim();
-    const visible = SERVICE_LIBRARY.filter(svc => (!svc.adult || settings.adultUnlocked) && (!q || svc.name.toLowerCase().includes(q) || (svc.category || '').includes(q)));
+    const visible = SERVICE_LIBRARY.filter(svc => (!svc.adult || (HAS_ADULT && settings.adultUnlocked)) && (!q || svc.name.toLowerCase().includes(q) || (svc.category || '').includes(q)));
     const tile = svc => `<div class="service-tile ${svc.adult ? 'adult' : ''} ${selectedService && selectedService.name === svc.name ? 'selected' : ''}" data-tile="${esc(svc.name)}"><div class="sub-icon tile-icon">${logoHtml(svc)}</div><span>${esc(svc.name)}</span></div>`;
     const normal = visible.filter(s => !s.adult).map(tile).join('');
     const adult = visible.filter(s => s.adult).map(tile).join('');
-    const gate = !settings.adultUnlocked && !q ? `<div class="service-tile locked" data-action="age-gate"><span class="tile-emoji">🔞</span><span>Adults only<br>(18+ · tap to unlock)</span></div>` : '';
+    const gate = HAS_ADULT && !settings.adultUnlocked && !q ? `<div class="service-tile locked" data-action="age-gate"><span class="tile-emoji">🔞</span><span>Adults only<br>(18+ · tap to unlock)</span></div>` : '';
     return `${normal}${gate}${adult ? `<div class="tile-divider">Adults only (18+)</div>${adult}` : ''}${!normal && !adult && !gate ? `<div class="tile-none">No match — just type the name below</div>` : ''}`;
   }
   function refreshTiles() { const g = $('service-grid'); if (g) g.innerHTML = tileHtml(); }
@@ -848,7 +858,7 @@
     const p = $('f-price'); if (p) p.focus();
   }
   function catOptions(current) {
-    return CATEGORIES.filter(c => !ADULT_CATS.includes(c) || settings.adultUnlocked || c === current)
+    return CATEGORIES.filter(c => !ADULT_CATS.includes(c) || (HAS_ADULT && settings.adultUnlocked) || c === current)
       .map(c => `<option value="${c}" ${current === c ? 'selected' : ''}>${EMOJI_MAP[c]} ${c[0].toUpperCase() + c.slice(1)}</option>`).join('');
   }
   function ensureCatOption(cat) { const c = $('f-cat'); if (c && cat && ![...c.options].some(o => o.value === cat)) c.insertAdjacentHTML('beforeend', `<option value="${cat}">${EMOJI_MAP[cat] || ''} ${cat[0].toUpperCase() + cat.slice(1)}</option>`); }
@@ -920,6 +930,204 @@
     const s = subs.find(x => x.id === id); if (!s) return;
     if (!confirm(`Delete ${s.name}?`)) return;
     remove(id); closeForm(); closeDetail(); toast('Deleted');
+  }
+
+  // ── Find subscriptions from email ────────────────────────────────────
+  //  UI around docs/discover.js: pick a mailbox → scan → review → import.
+  const DISC = window.Discover || null;
+  let disc = { state: 'choose', provider: '', session: null, items: [], email: '', cancelled: false, running: false, stats: null, editing: -1, error: '' };
+  const discProvider = id => DISC && DISC.providers[id];
+  const discReady = id => !!(discProvider(id) && discProvider(id).ready());
+  const fmtIso = iso => { if (!iso) return ''; const d = new Date(iso + (iso.length === 10 ? 'T00:00:00' : '')); return isNaN(d) ? iso : d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); };
+
+  function openDiscover(prefer) {
+    if (!DISC) { toast('Email discovery is not available in this build'); return; }
+    disc = { state: isNative() ? 'handoff' : 'choose', provider: prefer || '', session: null, items: [], email: '', cancelled: false, running: false, stats: null, editing: -1, error: '' };
+    renderDiscover();
+    $('discover-overlay').classList.add('open');
+    // warm up the sign-in SDKs now so the Connect tap can open the popup immediately
+    if (!isNative()) Object.values(DISC.providers).forEach(p => { if (p.ready()) p.prepare().catch(() => {}); });
+  }
+  function closeDiscover() {
+    disc.cancelled = true;
+    if (disc.session && discProvider(disc.session.provider)) { try { discProvider(disc.session.provider).disconnect(disc.session); } catch {} }
+    disc.session = null;
+    $('discover-overlay').classList.remove('open');
+  }
+  const discWebUrl = () => (CFG.EDITION_URL || APP_URL || '') + ((CFG.EDITION_URL || APP_URL || '').includes('?') ? '&' : '?') + 'connect=1';
+
+  function renderDiscover() {
+    const body = $('discover-body'); if (!body) return;
+    const u = window.Sync && window.Sync.user;
+    const mailboxes = settings.mailboxes || [];
+    const privacy = `<div class="disc-privacy">🔒 Read-only access, used once, on this device. We keep what you import (name, price, date, card last digits) — never your emails — and access is switched off when the scan ends. <a href="privacy.html#email" target="_blank" rel="noopener">Privacy policy</a></div>`;
+    let html = '';
+
+    if (disc.state === 'handoff') {
+      html = `
+        <div class="sheet-title">✉️ Find subscriptions</div>
+        <p class="disc-text">Connecting Gmail or Outlook happens in your phone's browser — Google and Microsoft don't allow their sign-in inside apps.</p>
+        <p class="disc-text">${u ? `You're signed in as <b>${esc(u.email)}</b>. Sign in with the same account in the browser and everything you import syncs straight back here.` : `<b>Sign in first</b> (Settings → Sign in) so what you import in the browser can sync back to this app.`}</p>
+        <button class="btn-primary btn-block" data-action="discover-open-web">Open in browser</button>
+        <button class="btn-secondary btn-block" style="margin-top:10px" data-action="discover-paste">Paste a receipt email instead</button>
+        ${privacy}`;
+    } else if (disc.state === 'choose') {
+      const card = (id, logo, title, sub) => {
+        const ready = discReady(id);
+        return `<button class="disc-provider ${disc.provider === id ? 'hint' : ''}" data-action="discover-connect" data-provider="${id}" ${ready ? '' : 'disabled'}>
+          <span class="disc-plogo">${logo}</span>
+          <span class="disc-pmain"><b>${title}</b><small>${ready ? sub : 'Not set up yet — the app owner needs to add a client ID (see README)'}</small></span>
+          <span class="disc-pstate">${ready ? 'Connect' : '—'}</span></button>`;
+      };
+      html = `
+        <div class="sheet-title">✉️ Find subscriptions</div>
+        <p class="disc-text">We look through the last 12 months of your inbox for receipts, renewals and trials, then show you what we found. Nothing is added until you tick it.</p>
+        ${disc.error ? `<div class="auth-banner danger">${esc(disc.error)}</div>` : ''}
+        <div class="disc-providers">
+          ${card('gmail', '<svg width="22" height="22" viewBox="0 0 24 24"><path fill="#EA4335" d="M5 7.5v9h-.5A2.5 2.5 0 0 1 2 14V8.1c0-.9 1-1.4 1.7-.9L5 8.2z"/><path fill="#4285F4" d="M19 7.5v9h.5a2.5 2.5 0 0 0 2.5-2.5V8.1c0-.9-1-1.4-1.7-.9L19 8.2z"/><path fill="#FBBC04" d="M5 8.2 12 13l7-4.8V5.6c0-1.3-1.5-2-2.5-1.2L12 7.8 7.5 4.4C6.5 3.6 5 4.3 5 5.6z"/><path fill="#34A853" d="M5 7.5 12 12.4l7-4.9v2.1l-7 4.9-7-4.9z"/></svg>', 'Gmail', 'Google accounts (gmail.com and Google Workspace)')}
+          ${card('outlook', '<svg width="22" height="22" viewBox="0 0 24 24"><rect x="2" y="5" width="12" height="14" rx="2" fill="#0078D4"/><ellipse cx="8" cy="12" rx="3" ry="3.6" fill="#fff"/><ellipse cx="8" cy="12" rx="1.5" ry="2.1" fill="#0078D4"/><path d="M14 8h7v9a2 2 0 0 1-2 2h-5z" fill="#28A8EA"/><path d="M14 8h7l-3.5 3z" fill="#50D9FF"/></svg>', 'Outlook / Hotmail', 'Outlook.com, Hotmail, Live and Microsoft 365')}
+          <button class="disc-provider" data-action="discover-paste">
+            <span class="disc-plogo">📋</span>
+            <span class="disc-pmain"><b>iCloud, Yahoo, work mail…</b><small>Paste a receipt email — works with any mailbox</small></span>
+            <span class="disc-pstate">Paste</span></button>
+        </div>
+        ${mailboxes.length ? `<div class="disc-sub">Scanned before</div>${mailboxes.map(m => `<div class="set-row"><div class="set-row-main"><div class="set-row-label">${esc(m.email)}</div><div class="set-row-sub">${esc(m.provider === 'gmail' ? 'Gmail' : 'Outlook')} · last scan ${fmtIso((m.lastScanAt || '').slice(0, 10))} · ${plural(m.found || 0, 'subscription')} found</div></div><button class="link-btn" data-action="discover-connect" data-provider="${esc(m.provider)}" data-hint="${esc(m.email)}" ${discReady(m.provider) ? '' : 'disabled'}>Scan again</button><button class="link-btn danger" data-action="discover-forget" data-email="${esc(m.email)}">Forget</button></div>`).join('')}` : ''}
+        ${privacy}`;
+    } else if (disc.state === 'paste') {
+      html = `
+        <div class="sheet-title">📋 Paste a receipt</div>
+        <p class="disc-text">Open the receipt or renewal email on your phone or computer, select all of it, copy, and paste it here. Works with iCloud Mail, Yahoo, work email — anything. The text stays on this device.</p>
+        <textarea id="disc-paste" class="disc-textarea" rows="9" placeholder="From: Apple <no_reply@email.apple.com>&#10;Subject: Your receipt from Apple.&#10;&#10;iCloud+ with 200GB Storage (Monthly) … $4.49"></textarea>
+        ${disc.error ? `<div class="auth-banner danger">${esc(disc.error)}</div>` : ''}
+        <div class="sheet-actions"><button class="btn-secondary" data-action="discover-back">Back</button><button class="btn-primary" data-action="discover-paste-go">Find the subscription</button></div>`;
+    } else if (disc.state === 'scanning') {
+      const st = disc.stats || { stage: 'connect', done: 0, total: 1 };
+      const pct = st.stage === 'connect' ? 4 : st.stage === 'search' ? 8 + 22 * (st.done / Math.max(1, st.total)) : st.stage === 'headers' ? 30 + 40 * (st.done / Math.max(1, st.total)) : st.stage === 'read' ? 70 + 26 * (st.done / Math.max(1, st.total)) : 98;
+      const label = st.stage === 'connect' ? 'Connecting…' : st.stage === 'search' ? `Searching your inbox (${st.done + 1} of ${st.total})…` : st.stage === 'headers' ? `Checking ${st.done} of ${st.total} emails…` : st.stage === 'read' ? `Reading ${st.done} of ${st.total} receipts…` : 'Working out what you pay…';
+      html = `
+        <div class="sheet-title">✉️ Scanning${disc.email ? ` <small class="disc-email">${esc(disc.email)}</small>` : ''}</div>
+        <div class="disc-progress"><div class="disc-bar" style="width:${Math.round(pct)}%"></div></div>
+        <div class="disc-stage">${label}</div>
+        <p class="disc-text small">Only subjects, senders and the receipts themselves are read, right here in your browser. This usually takes under a minute.</p>
+        <button class="btn-secondary btn-block" data-action="discover-cancel">Cancel</button>`;
+    } else if (disc.state === 'results') {
+      const items = disc.items;
+      const fresh = items.filter(i => !i.existing), known = items.filter(i => i.existing);
+      const picked = items.filter(i => i.checked).length;
+      const confBadge = it => it.existing ? `<span class="disc-badge muted">On your list</span>` : it.status === 'cancelled' ? `<span class="disc-badge danger">Cancelled</span>` : it.status === 'trial' ? `<span class="disc-badge warn">Trial</span>` : it.marketingOnly ? `<span class="disc-badge muted">Only marketing emails</span>` : it.confidence === 'low' ? `<span class="disc-badge warn">Check price</span>` : '';
+      const itemHtml = (it, i) => {
+        const svcLike = { name: it.name, domain: it.domain || (it.svc && it.svc.domain) || '', emoji: it.svc ? it.svc.emoji : '📦', category: it.svc ? it.svc.category : 'other' };
+        const price = it.price != null ? `${it.currency && it.currency !== 'AUD' ? it.currency + ' ' : ''}${money(it.price)}/${it.cycle === 'yearly' ? 'yr' : 'mo'}` : 'Price unknown';
+        const meta = [price, it.lastDate ? `last charged ${fmtIso(it.lastDate)}` : '', it.card || '', it.via ? `via ${it.via}` : '', it.count > 1 ? plural(it.count, 'receipt') : ''].filter(Boolean).join(' · ');
+        const editing = disc.editing === i;
+        return `<div class="disc-item ${it.checked ? 'on' : ''}" data-disc="${i}">
+          <div class="disc-row">
+            <label class="disc-check"><input type="checkbox" data-disc-check="${i}" ${it.checked ? 'checked' : ''}/><span class="disc-box"></span></label>
+            <div class="sub-icon disc-icon">${logoHtml(svcLike)}</div>
+            <div class="disc-main" data-disc-edit="${i}">
+              <div class="disc-name">${esc(it.name)} ${confBadge(it)}</div>
+              <div class="disc-meta">${esc(meta)}</div>
+              ${it.note ? `<div class="disc-meta">${esc(it.note)}</div>` : ''}
+              ${it.accountEmail && it.provider !== 'pasted' ? `<div class="disc-meta faint">${esc(it.accountEmail)}</div>` : ''}
+            </div>
+            <button class="link-btn" data-disc-edit="${i}">${editing ? 'Done' : 'Edit'}</button>
+          </div>
+          ${editing ? `<div class="disc-editor">
+            <div class="form-row"><label>Name</label><input type="text" data-disc-field="name" data-i="${i}" value="${esc(it.name)}"/></div>
+            <div class="form-grid">
+              <div class="form-row"><label>Price (${esc(CUR)})</label><input type="number" step="0.01" min="0" inputmode="decimal" data-disc-field="price" data-i="${i}" value="${it.price != null ? it.price : ''}" placeholder="9.99"/></div>
+              <div class="form-row"><label>Billing</label><select data-disc-field="cycle" data-i="${i}"><option value="monthly" ${it.cycle !== 'yearly' ? 'selected' : ''}>Monthly</option><option value="yearly" ${it.cycle === 'yearly' ? 'selected' : ''}>Yearly</option></select></div>
+            </div>
+            <div class="form-grid">
+              <div class="form-row"><label>Status</label><select data-disc-field="status" data-i="${i}">${['active', 'trial', 'paused', 'cancelled'].map(s => `<option value="${s}" ${it.status === s ? 'selected' : ''}>${s[0].toUpperCase() + s.slice(1)}</option>`).join('')}</select></div>
+              <div class="form-row"><label>Last charged</label><input type="date" data-disc-field="lastDate" data-i="${i}" value="${esc(it.lastDate || '')}"/></div>
+            </div>
+            ${it.evidence && it.evidence.length ? `<div class="disc-why"><b>Found in:</b> ${it.evidence.map(e => `${esc(e.subject || '(no subject)')} <span class="faint">(${fmtIso(e.date)})</span>`).join(' · ')}</div>` : ''}
+          </div>` : ''}
+        </div>`;
+      };
+      html = `
+        <div class="sheet-title">✉️ ${items.length ? `Found ${plural(fresh.length, 'subscription')}` : 'Nothing found'}</div>
+        <div class="disc-summary">${disc.email ? esc(disc.email) + ' · ' : ''}${disc.stats && disc.stats.scanned != null ? `${disc.stats.scanned} emails checked · ` : ''}${known.length ? `${known.length} already on your list` : 'tick what you want to add'}</div>
+        ${items.length ? '' : `<div class="finding finding-ok"><div class="finding-detail">No receipts or renewal emails turned up in the last 12 months. If your bills go to another address, scan that mailbox too — or paste a receipt.</div></div>`}
+        <div class="disc-list">${items.map(itemHtml).join('')}</div>
+        <div class="sheet-actions">
+          <button class="btn-secondary" data-action="discover-back">${items.length ? 'Cancel' : 'Back'}</button>
+          ${items.length ? `<button class="btn-primary" data-action="discover-import" ${picked ? '' : 'disabled'}>Add ${picked ? picked : ''} to my list</button>` : ''}
+        </div>`;
+    }
+    body.innerHTML = html;
+  }
+
+  async function discoverConnect(providerId, loginHint) {
+    const p = discProvider(providerId); if (!p || !p.ready()) return;
+    disc.provider = providerId; disc.error = ''; disc.cancelled = false; disc.email = loginHint || '';
+    let session;
+    try {
+      // the popup must open straight from the tap — prepare() was already called when the sheet opened
+      await p.prepare();
+      session = await p.connect({ loginHint: loginHint || '' });
+    } catch (e) {
+      if (/cancelled|popup_closed/i.test(e && e.message || '')) return;
+      disc.error = (e && e.message) || 'Could not connect'; disc.state = 'choose'; renderDiscover(); return;
+    }
+    if (disc.cancelled) { try { p.disconnect(session); } catch {} return; }
+    disc.session = session; disc.state = 'scanning'; disc.stats = { stage: 'connect', done: 0, total: 1 }; renderDiscover();
+    try {
+      const res = await DISC.scan(session, { months: 12, existing: subs, onProgress: st => { if (disc.cancelled) return; disc.stats = st; renderDiscover(); } });
+      if (disc.cancelled) return;
+      disc.session = null; // scan() revokes the token when it finishes
+      disc.email = res.email || disc.email; disc.items = res.items; disc.stats = { scanned: res.scanned }; disc.state = 'results'; disc.editing = -1;
+      renderDiscover();
+      rememberMailbox(providerId, disc.email, res.items.length);
+    } catch (e) {
+      if (disc.cancelled) return;
+      try { p.disconnect(session); } catch {}
+      disc.session = null; disc.error = (e && e.message) || 'The scan failed'; disc.state = 'choose'; renderDiscover();
+    }
+  }
+  function rememberMailbox(provider, email, found) {
+    if (!email) return;
+    const list = (settings.mailboxes || []).filter(m => m.email !== email);
+    list.unshift({ provider, email, lastScanAt: new Date().toISOString(), found });
+    settings.mailboxes = list.slice(0, 6); saveSettings();
+  }
+  function discoverPasteGo() {
+    const ta = $('disc-paste'); const text = ta ? ta.value : '';
+    if (!text || text.trim().length < 20) { disc.error = 'Paste the whole email — including the sender and subject if you can.'; renderDiscover(); return; }
+    disc.error = '';
+    const items = DISC.fromPasted(text, { existing: subs });
+    disc.items = items; disc.state = 'results'; disc.email = ''; disc.stats = null; disc.editing = items.length === 1 && (items[0].price == null || items[0].confidence === 'low') ? 0 : -1;
+    renderDiscover();
+  }
+  function discoverImport() {
+    const picked = disc.items.filter(i => i.checked);
+    if (!picked.length) return;
+    let n = 0;
+    for (const it of picked) {
+      if (!String(it.name || '').trim()) continue;
+      const sub = DISC.toSubscription(it, uuid);
+      if (!(sub.price > 0) && it.price == null) sub.price = 0;
+      commit(sub); n++;
+    }
+    closeDiscover();
+    toast(`Added ${plural(n, 'subscription')}${disc.email ? ' from ' + disc.email : ''}`);
+    showView('home');
+    if (window.Sync && !window.Sync.user && n) setTimeout(() => maybePromptAuth(false), 1200);
+  }
+  // Resume after a Microsoft full-page sign-in (popup-blocked browsers)
+  async function discoverResume() {
+    if (!DISC || isNative()) return;
+    try {
+      const session = await DISC.providers.outlook.resume();
+      if (!session) return;
+      openDiscover('outlook');
+      disc.session = session; disc.state = 'scanning'; disc.email = session.email || ''; disc.stats = { stage: 'connect', done: 0, total: 1 }; renderDiscover();
+      const res = await DISC.scan(session, { months: 12, existing: subs, onProgress: st => { if (disc.cancelled) return; disc.stats = st; renderDiscover(); } });
+      if (disc.cancelled) return;
+      disc.session = null; disc.email = res.email || disc.email; disc.items = res.items; disc.stats = { scanned: res.scanned }; disc.state = 'results'; renderDiscover();
+      rememberMailbox('outlook', disc.email, res.items.length);
+    } catch (e) { disc.error = (e && e.message) || 'The scan failed'; disc.state = 'choose'; renderDiscover(); }
   }
 
   // ── Age gate (adults-only services) ─────────────────────────────────
@@ -1250,13 +1458,27 @@
         case 'remove-member': { const r = t.closest('.member-row'); removeMember(t.dataset.user, r ? (r.querySelector('.set-row-label') || {}).textContent : ''); break; }
         case 'age-gate': openAgeGate(); break;
         case 'age-unlock': unlockAdult(); break;
+        case 'discover': openDiscover(''); break;
+        case 'discover-paste': if (!$('discover-overlay').classList.contains('open')) openDiscover(''); disc.state = 'paste'; disc.error = ''; renderDiscover(); setTimeout(() => { const ta = $('disc-paste'); if (ta) ta.focus(); }, 50); break;
+        case 'discover-paste-go': discoverPasteGo(); break;
+        case 'discover-connect': discoverConnect(t.dataset.provider, t.dataset.hint || ''); break;
+        case 'discover-open-web': { const w = window.open(discWebUrl(), '_blank'); if (!w) copyText(discWebUrl()).then(() => toast('Link copied — open it in your browser')); break; }
+        case 'discover-cancel': closeDiscover(); break;
+        case 'discover-back': disc.state = isNative() ? 'handoff' : 'choose'; disc.error = ''; disc.items = []; renderDiscover(); break;
+        case 'discover-import': discoverImport(); break;
+        case 'discover-forget': settings.mailboxes = (settings.mailboxes || []).filter(m => m.email !== t.dataset.email); saveSettings(); renderDiscover(); if (view === 'settings') renderSettings(); break;
       }
+    });
+    // discover sheet: tick boxes, inline edits
+    document.addEventListener('click', e => {
+      const ed = e.target.closest('[data-disc-edit]');
+      if (ed && !e.target.closest('input,select,label')) { const i = +ed.dataset.discEdit; disc.editing = disc.editing === i ? -1 : i; renderDiscover(); }
     });
 
     // overlays close on backdrop tap
     document.querySelectorAll('.sheet-overlay').forEach(ov => ov.addEventListener('click', e => {
       if (e.target !== ov) return;
-      if (ov.id === 'auth-overlay' && authOpts.prompt) dismissAuthPrompt(); else ov.classList.remove('open');
+      if (ov.id === 'auth-overlay' && authOpts.prompt) dismissAuthPrompt(); else if (ov.id === 'discover-overlay') closeDiscover(); else ov.classList.remove('open');
     }));
 
     // inputs
@@ -1265,6 +1487,7 @@
       if (e.target.id === 'f-start' || e.target.id === 'f-cycle') updRenew();
       if (e.target.id === 'svc-search') { tileQuery = e.target.value; refreshTiles(); }
       if (e.target.id === 'f-name') { const t = e.target.value.trim(); if (selectedService && selectedService.name !== t) { selectedService = null; document.querySelectorAll('.service-tile').forEach(x => x.classList.remove('selected')); } }
+      if (e.target.dataset.discField) { const it = disc.items[+e.target.dataset.i]; if (it) { const f = e.target.dataset.discField; it[f] = f === 'price' ? (e.target.value === '' ? null : parseFloat(e.target.value)) : e.target.value; if (f === 'name') { const row = e.target.closest('.disc-item'); const n = row && row.querySelector('.disc-name'); if (n) n.firstChild.textContent = e.target.value + ' '; } } }
     });
     document.addEventListener('change', async e => {
       if (['d-status', 'd-cycle', 'd-sort', 'f-cycle'].includes(e.target.id)) { if (e.target.id === 'f-cycle') updRenew(); else render(); }
@@ -1280,10 +1503,12 @@
       if (e.target.id === 'set-notify-days') { settings.notifyDays = +e.target.value; saveSettings(); scheduleNotifications(); if (profile && profile.email_reminders) setEmailReminders(true); }
       if (e.target.id === 'set-adult') { if (e.target.checked) { e.target.checked = false; openAgeGate(); } else lockAdult(); }
       if (e.target.id === 'age-confirm') { const b = document.querySelector('[data-action="age-unlock"]'); if (b) b.disabled = !e.target.checked; }
+      if (e.target.dataset.discCheck !== undefined) { const it = disc.items[+e.target.dataset.discCheck]; if (it) { it.checked = e.target.checked; const n = disc.items.filter(x => x.checked).length; const b = document.querySelector('[data-action="discover-import"]'); if (b) { b.disabled = !n; b.textContent = `Add ${n || ''} to my list`.replace('  ', ' '); } e.target.closest('.disc-item').classList.toggle('on', it.checked); } }
+      if (e.target.dataset.discField === 'cycle' || e.target.dataset.discField === 'status' || e.target.dataset.discField === 'lastDate') { const it = disc.items[+e.target.dataset.i]; if (it) it[e.target.dataset.discField] = e.target.value; }
       if (e.target.id === 'import-file' && e.target.files[0]) { importJSON(e.target.files[0]); e.target.value = ''; }
     });
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') document.querySelectorAll('.sheet-overlay.open').forEach(o => o.classList.remove('open'));
+      if (e.key === 'Escape') document.querySelectorAll('.sheet-overlay.open').forEach(o => { if (o.id === 'discover-overlay') closeDiscover(); else o.classList.remove('open'); });
       if (e.key === 'Enter' && e.target.closest('#auth-body')) { const b = document.querySelector('[data-auth-submit]'); if (b) b.click(); }
       if (e.key === 'Enter' && e.target.id === 'join-code') submitJoin();
     });
@@ -1324,7 +1549,11 @@
     syncChips(); updateFilterDot();
     checkDueSoon();
     scheduleNotifications();
-    if (!onboarding) maybePromptAuth(false);
+    let connect = '';
+    try { const u = new URL(location.href); connect = u.searchParams.get('connect') || ''; if (connect) history.replaceState(null, '', location.pathname + location.hash); } catch {}
+    if (connect && !isNative()) { setTimeout(() => openDiscover(connect === '1' ? '' : connect), onboarding ? 0 : 300); }
+    else if (!onboarding) maybePromptAuth(false);
+    discoverResume();
 
     // iOS install tip
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);

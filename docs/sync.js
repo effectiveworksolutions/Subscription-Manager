@@ -166,9 +166,23 @@
       url: s.url || null,
       domain: s.domain || null,
       notes: s.notes || null,
+      account_email: s.accountEmail || null,
       deleted_at: s.deletedAt || null,
       updated_at: s.updatedAt || new Date().toISOString(),
     };
+  }
+  // Upsert that keeps working if supabase-email-discovery.sql hasn't been run yet
+  // (older databases have no account_email column: retry without it).
+  let noAccountEmailColumn = false;
+  async function upsertRows(rows) {
+    const strip = rs => rs.map(r => { const c = { ...r }; delete c.account_email; return c; });
+    const { error } = await client.from(TABLE).upsert(noAccountEmailColumn ? strip(rows) : rows, { onConflict: 'id' });
+    if (error && !noAccountEmailColumn && /account_email/i.test(error.message || '')) {
+      noAccountEmailColumn = true; console.warn('SubTracker: run supabase-email-discovery.sql to store which mailbox a subscription came from');
+      const { error: e2 } = await client.from(TABLE).upsert(strip(rows), { onConflict: 'id' });
+      return e2;
+    }
+    return error;
   }
   function fromRow(r) {
     return {
@@ -184,6 +198,7 @@
       url: r.url || '',
       domain: r.domain || '',
       notes: r.notes || '',
+      accountEmail: r.account_email || '',
       deletedAt: r.deleted_at || null,
       updatedAt: r.updated_at,
     };
@@ -191,7 +206,7 @@
 
   // ── Auth ─────────────────────────────────────────────────────────────
   async function signUp(email, password) {
-    const { data, error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: CFG.APP_URL || location.href.split('#')[0].split('?')[0] } });
+    const { data, error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: CFG.EDITION_URL || CFG.APP_URL || location.href.split('#')[0].split('?')[0] } });
     if (error) throw error;
     // If email confirmation is on, session is null until they click the link.
     return { needsConfirm: !data.session };
@@ -201,7 +216,7 @@
     if (error) throw error;
   }
   async function resetPassword(email) {
-    const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: CFG.APP_URL || location.href.split('#')[0].split('?')[0] });
+    const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: CFG.EDITION_URL || CFG.APP_URL || location.href.split('#')[0].split('?')[0] });
     if (error) throw error;
   }
   async function signOut() {
@@ -249,7 +264,7 @@
       byId.forEach(l => { merged.push(l); toPush.push(l); });
 
       if (toPush.length) {
-        const { error: upErr } = await client.from(TABLE).upsert(toPush.map(toRow), { onConflict: 'id' });
+        const upErr = await upsertRows(toPush.map(toRow));
         if (upErr) throw upErr;
       }
       window.App.setAll(merged, /*fromSync*/ true);
@@ -268,7 +283,7 @@
     if (!client || !user) return;
     if (!listId) { try { await ensureList(); } catch (e) { status('error', e.message || String(e)); return; } }
     try {
-      const { error } = await client.from(TABLE).upsert(toRow(sub), { onConflict: 'id' });
+      const error = await upsertRows([toRow(sub)]);
       if (error) throw error;
       lastSyncAt = new Date().toISOString(); status('ok');
     } catch (e) { status('error', e.message || String(e)); }
@@ -278,7 +293,7 @@
     if (!client || !user || !subs.length) return;
     if (!listId) { try { await ensureList(); } catch (e) { status('error', e.message || String(e)); return; } }
     try {
-      const { error } = await client.from(TABLE).upsert(subs.map(toRow), { onConflict: 'id' });
+      const error = await upsertRows(subs.map(toRow));
       if (error) throw error;
       lastSyncAt = new Date().toISOString(); status('ok');
     } catch (e) { status('error', e.message || String(e)); }

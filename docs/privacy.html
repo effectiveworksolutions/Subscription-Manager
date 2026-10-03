@@ -32,6 +32,7 @@
     <li><strong>App preferences</strong> — whether reminders are on, how many days before to remind, and whether you've seen the welcome screen.</li>
     <li><strong>Your email address and a password</strong> — only if you choose to create an account for cloud sync.</li>
     <li><strong>Reminder preferences</strong> — whether you want email reminders and how many days before a renewal, if you turn them on.</li>
+    <li><strong>Where a subscription was found</strong> — if you use "Find subscriptions from your email", the address of the mailbox each imported subscription came from (e.g. <code>you@gmail.com</code>) and the last four digits of the card shown on the receipt, if any.</li>
   </ul>
   <p>SubTracker never asks for, and has no way to receive, full card numbers, bank credentials, or passwords for other services.</p>
 
@@ -54,6 +55,7 @@
     <li><strong>Supabase</strong> (authentication and database, optional) — <a href="https://supabase.com/privacy" target="_blank" rel="noopener">privacy policy</a>.</li>
     <li><strong>Google Fonts</strong> (typography) — fonts are loaded from Google's CDN, which may log your IP address. <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google privacy policy</a>.</li>
     <li><strong>Service logos</strong> — the app shows each service's icon by requesting it from Google's favicon service (or DuckDuckGo's as a fallback). Those requests include the service's website address but nothing about you or your subscription. Logos are cached on your device.</li>
+    <li><strong>Google and Microsoft sign-in</strong> (finding subscriptions from email, optional) — if you connect Gmail or Outlook, their sign-in page runs in your browser and their mail APIs are called directly from your device. <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google privacy policy</a> · <a href="https://privacy.microsoft.com/privacystatement" target="_blank" rel="noopener">Microsoft privacy statement</a>.</li>
     <li><strong>Resend</strong> (email delivery, optional) — if you turn on email reminders, a daily message listing your upcoming renewals is sent to your email address through Resend. <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener">Resend privacy policy</a>.</li>
     <li><strong>GitHub Pages</strong> (web hosting) — standard server logs. <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">GitHub privacy statement</a>.</li>
   </ul>
@@ -64,11 +66,14 @@
   <h2>Shared lists</h2>
   <p>You can invite other people to co-own your list. Everyone on a shared list can see, add, edit and delete every subscription on it, and can see each other's email address in Settings. Invite codes expire after 14 days. The list owner can remove members, and members can leave, at any time. Only share a list with people you trust.</p>
 
+  <h2 id="email">Finding subscriptions from your email</h2>
+  <p>If you choose <strong>Find subscriptions from your email</strong>, SubTracker asks Google or Microsoft for <strong>read-only</strong> access to that mailbox through their own sign-in page. We never see, ask for or store your email password. The app then searches the last 12 months for receipts, renewal and trial emails and reads only those messages — on your device, in your browser. Nothing from your mailbox is sent to our servers or to anyone else, and the emails themselves are not kept.</p>
+  <p>You review what was found and tick what to add. Only the resulting subscription details are saved to your list: service name, price, billing cycle, date of the last charge, the mailbox it came from and, if the receipt shows it, the last four digits of the card. The access token is held in memory only and is revoked when the scan finishes or you close the sheet. You can also remove SubTracker's access at any time from your <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account</a> or <a href="https://account.microsoft.com/privacy/app-access" target="_blank" rel="noopener">Microsoft account</a>.</p>
+  <p>SubTracker's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements. Pasting a receipt email works the same way: the text is read on your device and discarded once the subscription is added.</p>
+
   <h2>AI review</h2>
   <p>The "AI review" feature compares the subscriptions on your list against a set of rules about overlapping services, bundles and plan types. It runs entirely on your device; nothing is sent to any AI service.</p>
 
-  <h2>Adults-only services</h2>
-  <p>The service picker includes an optional section of adult subscription services. It is hidden until you confirm that you are 18 or older; that confirmation is stored only on your device and can be turned off in Settings. The app contains no adult imagery or content — only service names and logos.</p>
 
   <h2>Your control</h2>
   <ul>

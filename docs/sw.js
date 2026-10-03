@@ -3,8 +3,8 @@
 // (fast load, updates land on the next open). Network-only for Supabase
 // and the Google Fonts API.
 // Bump CACHE_VERSION whenever you deploy to force a clean refresh.
-const CACHE_VERSION = 'subtracker-v3';
-const PRECACHE = ['./', './index.html', './app.css', './app.js', './brands.js', './sync.js', './config.js', './manifest.json', './icon-192.png', './icon-512.png'];
+const CACHE_VERSION = 'subtracker-v5';
+const PRECACHE = ['./', './index.html', './app.css', './app.js', './brands.js', './sync.js', './discover.js', './config.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(PRECACHE)).catch(() => {}));
@@ -22,6 +22,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   // never cache API calls or font CSS (font CSS varies by UA)
   if (url.hostname.endsWith('supabase.co') || url.hostname === 'fonts.googleapis.com') return;
+  if (/accounts\.google\.com|googleapis\.com|gstatic\.com\/gsi|microsoftonline\.com|graph\.microsoft\.com|msauth\.net|login\.live\.com/.test(url.hostname + url.pathname) && url.hostname !== 'fonts.gstatic.com') return;
 
   e.respondWith(
     caches.open(CACHE_VERSION).then(async cache => {

@@ -11,7 +11,7 @@
 window.EMOJI_MAP = {
   streaming: '🎬', music: '🎵', ai: '🤖', storage: '☁️', gaming: '🎮', news: '📰',
   fitness: '💪', productivity: '📋', design: '🎨', security: '🔐', education: '🎓',
-  shopping: '🛍️', finance: '💰', utilities: '💡', telco: '📱', adult: '🔞', other: '📦',
+  shopping: '🛍️', finance: '💰', utilities: '💡', telco: '📱', other: '📦',
 };
 
 // Categories that are only shown once the 18+ section has been unlocked
@@ -23,7 +23,8 @@ window.ADULT_CATEGORIES = ['adult'];
 //   group     used by the AI review to spot overlapping services
 //   annual    true when the service is known to offer a cheaper yearly plan
 //   includes  other services that are bundled in (AI review "already included")
-//   adult     true → only visible after the 18+ check
+//   adult     true → only visible after the 18+ check (no entries shipped at the moment;
+//             the section and its age gate appear automatically if any are added)
 window.SERVICE_LIBRARY = [
   // Video streaming
   { name: 'Netflix',          emoji: '🎬', category: 'streaming', group: 'video', domain: 'netflix.com',        url: 'https://www.netflix.com/account' },
@@ -158,16 +159,6 @@ window.SERVICE_LIBRARY = [
   { name: 'amaysim',          emoji: '📱', category: 'telco',     group: 'mobile', domain: 'amaysim.com.au',      url: 'https://www.amaysim.com.au/my-account' },
   { name: 'Aussie Broadband', emoji: '🌐', category: 'telco',     group: 'internet', domain: 'aussiebroadband.com.au', url: 'https://my.aussiebroadband.com.au' },
 
-  // ── Adults only (18+) — hidden until unlocked in the app ─────────────
-  { name: 'Pornhub Premium',  emoji: '🔞', category: 'adult', group: 'adult', domain: 'pornhub.com',        url: 'https://www.pornhub.com/premium', adult: true, annual: true },
-  { name: 'OnlyFans',         emoji: '🔞', category: 'adult', group: 'creators', domain: 'onlyfans.com',   url: 'https://onlyfans.com/my/settings/subscriptions', adult: true },
-  { name: 'Fansly',           emoji: '🔞', category: 'adult', group: 'creators', domain: 'fansly.com',     url: 'https://fansly.com/settings/subscriptions', adult: true },
-  { name: 'Brazzers',         emoji: '🔞', category: 'adult', group: 'adult', domain: 'brazzers.com',       url: 'https://www.brazzers.com', adult: true, annual: true },
-  { name: 'Adult Time',       emoji: '🔞', category: 'adult', group: 'adult', domain: 'adulttime.com',      url: 'https://www.adulttime.com', adult: true, annual: true },
-  { name: 'Reality Kings',    emoji: '🔞', category: 'adult', group: 'adult', domain: 'realitykings.com',   url: 'https://www.realitykings.com', adult: true, annual: true },
-  { name: 'Bang Bros',        emoji: '🔞', category: 'adult', group: 'adult', domain: 'bangbros.com',       url: 'https://www.bangbros.com', adult: true, annual: true },
-  { name: 'Naughty America',  emoji: '🔞', category: 'adult', group: 'adult', domain: 'naughtyamerica.com', url: 'https://www.naughtyamerica.com', adult: true, annual: true },
-
   { name: 'Custom…',          emoji: '📦', category: 'other', group: '', domain: '', url: '' },
 ];
 
@@ -180,7 +171,6 @@ window.SERVICE_ALIASES = {
   'adobe': 'Adobe CC', 'adobe creative cloud': 'Adobe CC', 'icloud': 'iCloud+', 'apple tv': 'Apple TV+',
   'disney': 'Disney+', 'disney plus': 'Disney+', 'paramount': 'Paramount+', 'paramount plus': 'Paramount+',
   'kayo': 'Kayo Sports', 'woolworths everyday extra': 'Everyday Extra', 'doordash': 'DashPass',
-  'onlyfans': 'OnlyFans', 'pornhub': 'Pornhub Premium', 'brazzers': 'Brazzers',
 };
 
 // Readable labels for the AI review
