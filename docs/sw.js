@@ -1,8 +1,9 @@
 // SubTracker service worker — offline support
-// Strategy: stale-while-revalidate for our own files (fast load, updates
-// land on the next open). Network-only for Supabase and Google Fonts API.
+// Strategy: stale-while-revalidate for our own files and service logos
+// (fast load, updates land on the next open). Network-only for Supabase
+// and the Google Fonts API.
 // Bump CACHE_VERSION whenever you deploy to force a clean refresh.
-const CACHE_VERSION = 'subtracker-v2';
+const CACHE_VERSION = 'subtracker-v3';
 const PRECACHE = ['./', './index.html', './app.css', './app.js', './brands.js', './sync.js', './config.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -26,7 +27,8 @@ self.addEventListener('fetch', e => {
     caches.open(CACHE_VERSION).then(async cache => {
       const cached = await cache.match(req);
       const network = fetch(req).then(res => {
-        if (res && res.ok && (url.origin === location.origin || url.hostname === 'fonts.gstatic.com' || url.hostname === 'cdn.jsdelivr.net')) {
+        const logo = (url.hostname === 'www.google.com' && url.pathname.startsWith('/s2/favicons')) || url.hostname === 'icons.duckduckgo.com';
+        if (res && (res.ok || (logo && res.type === 'opaque')) && (url.origin === location.origin || url.hostname === 'fonts.gstatic.com' || url.hostname === 'cdn.jsdelivr.net' || logo)) {
           cache.put(req, res.clone());
         }
         return res;

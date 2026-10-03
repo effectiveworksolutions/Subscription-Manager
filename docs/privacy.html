@@ -31,6 +31,7 @@
     <li><strong>Subscription details you enter</strong> — service name, price, billing cycle, status, start date, payment method label (e.g. "Visa 1234"), a link to the service, and notes.</li>
     <li><strong>App preferences</strong> — whether reminders are on, how many days before to remind, and whether you've seen the welcome screen.</li>
     <li><strong>Your email address and a password</strong> — only if you choose to create an account for cloud sync.</li>
+    <li><strong>Reminder preferences</strong> — whether you want email reminders and how many days before a renewal, if you turn them on.</li>
   </ul>
   <p>SubTracker never asks for, and has no way to receive, full card numbers, bank credentials, or passwords for other services.</p>
 
@@ -52,16 +53,27 @@
   <ul>
     <li><strong>Supabase</strong> (authentication and database, optional) — <a href="https://supabase.com/privacy" target="_blank" rel="noopener">privacy policy</a>.</li>
     <li><strong>Google Fonts</strong> (typography) — fonts are loaded from Google's CDN, which may log your IP address. <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google privacy policy</a>.</li>
+    <li><strong>Service logos</strong> — the app shows each service's icon by requesting it from Google's favicon service (or DuckDuckGo's as a fallback). Those requests include the service's website address but nothing about you or your subscription. Logos are cached on your device.</li>
+    <li><strong>Resend</strong> (email delivery, optional) — if you turn on email reminders, a daily message listing your upcoming renewals is sent to your email address through Resend. <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener">Resend privacy policy</a>.</li>
     <li><strong>GitHub Pages</strong> (web hosting) — standard server logs. <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">GitHub privacy statement</a>.</li>
   </ul>
 
-  <h2>Notifications</h2>
-  <p>If you turn on reminders, the app schedules notifications on your device for upcoming renewals. These are generated locally and nothing is sent to a server to make them work.</p>
+  <h2>Notifications and email reminders</h2>
+  <p>If you turn on reminders, the app schedules notifications on your device for upcoming renewals. These are generated locally and nothing is sent to a server to make them work. If you also turn on <strong>email reminders</strong> (requires an account), our server reads your list once a day to work out what is due and emails you a summary. Turn it off in Settings at any time.</p>
+
+  <h2>Shared lists</h2>
+  <p>You can invite other people to co-own your list. Everyone on a shared list can see, add, edit and delete every subscription on it, and can see each other's email address in Settings. Invite codes expire after 14 days. The list owner can remove members, and members can leave, at any time. Only share a list with people you trust.</p>
+
+  <h2>AI review</h2>
+  <p>The "AI review" feature compares the subscriptions on your list against a set of rules about overlapping services, bundles and plan types. It runs entirely on your device; nothing is sent to any AI service.</p>
+
+  <h2>Adults-only services</h2>
+  <p>The service picker includes an optional section of adult subscription services. It is hidden until you confirm that you are 18 or older; that confirmation is stored only on your device and can be turned off in Settings. The app contains no adult imagery or content — only service names and logos.</p>
 
   <h2>Your control</h2>
   <ul>
     <li><strong>Export</strong> — Settings → Back up to file gives you everything as JSON or CSV at any time.</li>
-    <li><strong>Delete</strong> — Settings → Delete all data removes everything from your device and, if signed in, from your cloud account immediately.</li>
+    <li><strong>Delete</strong> — Settings → Delete all data removes everything from your device and, if signed in, from your cloud account (deleted rows are kept as "tombstones" for up to 60 days so your other devices learn about the deletion, then purged).</li>
     <li><strong>Close your account</strong> — delete all data, then email us and we'll remove the account record itself within 7 days.</li>
   </ul>
 
