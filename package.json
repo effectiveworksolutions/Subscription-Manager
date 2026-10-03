@@ -1,0 +1,15 @@
+{
+  "name": "subtracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Track every subscription in one place",
+  "scripts": {
+    "setup": "npm install && npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/ios @capacitor/local-notifications @capacitor/filesystem @capacitor/share @capacitor/status-bar @capacitor/splash-screen @capacitor/app",
+    "android:add": "npx cap add android",
+    "android": "npx cap sync android && npx cap open android",
+    "ios:add": "npx cap add ios",
+    "ios": "npx cap sync ios && npx cap open ios",
+    "sync": "npx cap sync",
+    "serve": "npx --yes serve docs -l 8080"
+  }
+}
