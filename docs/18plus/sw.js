@@ -3,7 +3,7 @@
 // (fast load, updates land on the next open). Network-only for Supabase
 // and the Google Fonts API.
 // Bump CACHE_VERSION whenever you deploy to force a clean refresh.
-const CACHE_VERSION = 'subtracker-v6-18plus';
+const CACHE_VERSION = 'subtracker-v7-18plus';
 const PRECACHE = ['./', './index.html', './app.css', './app.js', './brands.js', './brands-adult.js', './sync.js', './discover.js', './config.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
