@@ -149,13 +149,32 @@
     try { await navigator.clipboard.writeText(text); return true; } catch {}
     try { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); return true; } catch { return false; }
   }
+  const isTouchPhone = () => isMobile() && (matchMedia('(pointer: coarse)').matches || /android|iphone|ipad|ipod/i.test(navigator.userAgent));
   async function shareText(title, text, url) {
     const S = plugin('Share');
     if (S && isNative()) { try { await S.share({ title, text, url, dialogTitle: title }); return true; } catch { return false; } }
-    if (navigator.share) { try { await navigator.share({ title, text, url }); return true; } catch { return false; } }
-    const ok = await copyText(url ? `${text} ${url}` : text);
-    toast(ok ? 'Copied — paste it into a message' : 'Could not copy');
-    return ok;
+    if (navigator.share && isTouchPhone()) { try { await navigator.share({ title, text: url ? `${text}\n${url}` : text, url }); return true; } catch (e) { if (e && e.name === 'AbortError') return false; } }
+    openShareSheet(title, text, url);
+    return true;
+  }
+  // Desktop share sheet: the link itself plus one-tap ways to send it
+  function openShareSheet(title, text, url) {
+    const full = url ? `${text}\n${url}` : text;
+    const mail = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(full)}`;
+    const wa = `https://wa.me/?text=${encodeURIComponent(full)}`;
+    const body = $('share-body');
+    body.innerHTML = `
+      <div class="sheet-title">${esc(title)}</div>
+      <p class="age-text">${esc(text)}</p>
+      ${url ? `<div class="invite-link share-link" id="share-link-text">${esc(url)}</div>` : ''}
+      <div class="btn-row">
+        <button class="btn-primary" data-action="share-copy" data-text="${esc(url || full)}">Copy link</button>
+        <a class="btn-secondary btn-link" href="${esc(mail)}">Email</a>
+        <a class="btn-secondary btn-link" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>
+      </div>
+      <div class="auth-note">Paste the link into any message. On a phone it opens straight in the browser and can be added to the home screen like an app.</div>
+      <button class="btn-secondary btn-block" style="margin-top:12px" data-close="share-overlay">Done</button>`;
+    $('share-overlay').classList.add('open');
   }
 
   // ── Mutations (single path: local → cloud → notify → render) ─────────
@@ -353,8 +372,10 @@
     const filtered = getFiltered();
     renderSummary(filtered);
     const count = `${filtered.length} subscription${filtered.length !== 1 ? 's' : ''}`;
-    if ($('m-review')) $('m-review').innerHTML = reviewBannerHtml();
-    if ($('d-review')) $('d-review').innerHTML = reviewBannerHtml();
+    const dupBanner = dupBannerHtml(), dups = dupIds();
+    if ($('m-review')) $('m-review').innerHTML = dupBanner + reviewBannerHtml();
+    if ($('d-review')) $('d-review').innerHTML = dupBanner + reviewBannerHtml();
+    const dupBadge = s => dups.has(s.id) ? `<span class="badge badge-duplicate">duplicate?</span>` : '';
 
     if ($('m-label')) $('m-label').textContent = filtered.length ? count : '';
     if ($('m-list')) {
@@ -371,7 +392,7 @@
               <div class="price-main">${money(s.price)}/${s.cycle === 'yearly' ? 'yr' : 'mo'}</div>
               ${s.cycle === 'yearly' ? `<div class="price-per">${money(toMonthly(s))}/mo</div>` : ''}
             </div>
-            ${badgeHtml(s.status)}
+            ${dupBadge(s)}${badgeHtml(s.status)}
           </div>
         </div>`).join('') : emptyHtml();
     }
@@ -392,7 +413,7 @@
               <div class="price-main">${money(s.price)}/${s.cycle === 'yearly' ? 'yr' : 'mo'}</div>
               ${s.cycle === 'yearly' ? `<div class="price-per">${money(toMonthly(s))}/mo</div>` : ''}
             </div>
-            ${badgeHtml(s.status)}
+            ${dupBadge(s)}${badgeHtml(s.status)}
             <button class="d-icon-btn" data-edit="${s.id}" title="Edit">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </button>
@@ -509,6 +530,13 @@
     const live = subs.filter(isBillable);
     const F = [];
     const push = f => F.push(f);
+
+    // 0. The same subscription entered twice
+    findDuplicateGroups().forEach(g => {
+      push({ kind: 'duplicate', icon: '⚠️', subs: g.members, savingLow: g.wasted, savingHigh: g.wasted, dup: true,
+        title: `${g.name} is on your list ${g.members.length} times`,
+        detail: g.exact.length ? `${g.exact.length + 1} entries with the same price — your totals count it ${g.exact.length + 1} times. Keep one and remove the rest.` : `Two entries with different prices or plans — if it's the same subscription, keep the right one.` });
+    });
 
     // 1. Overlapping services of the same kind
     const byGroup = {};
@@ -656,7 +684,7 @@
             </div>
           </div>
           <div class="finding-detail">${esc(f.detail)}</div>
-          <div class="finding-subs">${f.subs.map(s => `<button class="finding-chip" data-edit="${s.id}"><span class="sub-icon">${logoHtml(s)}</span>${esc(s.name)} <b>${money(toMonthly(s))}/mo</b></button>`).join('')}</div>
+          <div class="finding-subs">${f.dup ? `<button class="finding-chip accent" data-action="duplicates-from-review">⚠️ Fix duplicates</button>` : f.subs.map(s => `<button class="finding-chip" data-edit="${s.id}"><span class="sub-icon">${logoHtml(s)}</span>${esc(s.name)} <b>${money(toMonthly(s))}/mo</b></button>`).join('')}</div>
         </div>`).join('')
       : `<div class="finding finding-ok"><div class="finding-top"><div class="finding-ic">✅</div><div class="finding-main"><div class="finding-title">No obvious savings — nice work</div></div></div>
           <div class="finding-detail">We checked for duplicate services, things you're paying for twice, bundles, cheaper yearly plans and trials about to convert. Add more subscriptions and run it again any time.</div></div>`}
@@ -902,6 +930,12 @@
   const closeForm = () => { $('form-overlay').classList.remove('open'); selectedService = null; editId = null; };
 
   function saveForm() {
+    if (!editId) {
+      const nm = ($('f-name').value || '').trim().toLowerCase();
+      const twin = nm && subs.find(s => s.status !== 'cancelled' && dupKey(s) === dupKey({ name: nm }));
+      if (twin && !window._dupAddOk) { window._dupAddOk = true; toast(`You already track ${twin.name} (${money(twin.price)}/${twin.cycle === 'yearly' ? 'yr' : 'mo'}) — tap Save again to add it anyway`, 4000); return; }
+    }
+    window._dupAddOk = false;
     const name = $('f-name').value.trim();
     const price = parseFloat($('f-price').value);
     const err = $('f-error');
@@ -930,6 +964,130 @@
     const s = subs.find(x => x.id === id); if (!s) return;
     if (!confirm(`Delete ${s.name}?`)) return;
     remove(id); closeForm(); closeDetail(); toast('Deleted');
+  }
+
+  // ── Duplicates: flag entries that are the same subscription twice ───────
+  //  Same service (library name / alias / typed name) → a group. Entries with the
+  //  same price and billing cycle are "exact" duplicates (removal pre-ticked);
+  //  same service with a different plan is "possible" (shown, nothing pre-ticked).
+  const dupKey = s => String(canonName(s) || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const dupPairKey = (a, b) => [a.id, b.id].sort().join('|');
+  const dupIgnored = (a, b) => (settings.dupIgnore || []).includes(dupPairKey(a, b));
+  // how "complete" an entry is — the keeper is the most complete, then the oldest
+  const dupScore = s => (s.paymentMethod ? 2 : 0) + (s.url ? 1 : 0) + (s.notes ? 1 : 0) + (s.startDate ? 1 : 0) + (s.accountEmail ? 1 : 0) + (s.domain ? 1 : 0);
+  function findDuplicateGroups() {
+    const live = subs.filter(s => s.status !== 'cancelled');
+    const by = new Map();
+    live.forEach(s => { const k = dupKey(s); if (!k) return; if (!by.has(k)) by.set(k, []); by.get(k).push(s); });
+    const groups = [];
+    for (const [key, list] of by) {
+      if (list.length < 2) continue;
+      // drop entries the person has said are fine to keep together
+      const members = list.filter(s => list.some(o => o !== s && !dupIgnored(s, o)));
+      if (members.length < 2) continue;
+      const sorted = [...members].sort((a, b) => dupScore(b) - dupScore(a) || String(a.updatedAt || '').localeCompare(String(b.updatedAt || '')));
+      const keep = sorted[0];
+      const exact = sorted.filter(s => s !== keep && s.cycle === keep.cycle && Math.abs(Number(s.price) - Number(keep.price)) < 0.005);
+      const possible = sorted.filter(s => s !== keep && !exact.includes(s));
+      groups.push({ key, name: keep.name, members: sorted, keep, exact, possible, wasted: exact.reduce((a, s) => a + toMonthly(s), 0) });
+    }
+    return groups;
+  }
+  const dupSetKey = groups => groups.map(g => g.members.map(s => s.id).sort().join(',')).sort().join(';');
+  let dupChoice = {}; // group key → id to keep (while the sheet is open)
+  let dupRemove = {}; // group key → Set of ids ticked for removal
+
+  function dupBannerHtml() {
+    const groups = findDuplicateGroups();
+    if (!groups.length) return '';
+    const n = groups.reduce((a, g) => a + g.exact.length + g.possible.length, 0);
+    const wasted = groups.reduce((a, g) => a + g.wasted, 0);
+    return `<button class="review-banner dup-banner" data-action="duplicates">
+      <span class="review-banner-ic">⚠️</span>
+      <span class="review-banner-text"><b>${plural(n, 'possible duplicate')} found</b><small>${wasted ? `${money(wasted)}/mo is being counted twice · ` : ''}tap to tidy up</small></span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </button>`;
+  }
+  const dupIds = () => new Set(findDuplicateGroups().flatMap(g => g.members.map(s => s.id)));
+
+  function openDuplicates() {
+    const groups = findDuplicateGroups();
+    dupChoice = {}; dupRemove = {};
+    groups.forEach(g => { dupChoice[g.key] = g.keep.id; dupRemove[g.key] = new Set(g.exact.map(s => s.id)); });
+    renderDuplicates();
+    $('dup-overlay').classList.add('open');
+  }
+  function renderDuplicates() {
+    const groups = findDuplicateGroups();
+    const body = $('dup-body'); if (!body) return;
+    if (!groups.length) {
+      body.innerHTML = `<div class="sheet-title">✅ No duplicates</div><p class="disc-text">Every subscription on your list is only there once.</p><button class="btn-secondary btn-block" data-close="dup-overlay">Done</button>`;
+      return;
+    }
+    const total = groups.reduce((a, g) => a + (dupRemove[g.key] ? dupRemove[g.key].size : 0), 0);
+    const added = s => s.updatedAt ? new Date(s.updatedAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '';
+    body.innerHTML = `
+      <div class="sheet-title">⚠️ Duplicates</div>
+      <p class="disc-text">${groups.length === 1 ? 'One subscription is' : `${groups.length} subscriptions are`} on your list more than once — usually from adding it twice, a double import, or two devices syncing the same entry. Pick the copy to keep; the ticked ones are removed (only from SubTracker — this never touches the real subscription).</p>
+      ${groups.map(g => {
+        const keepId = dupChoice[g.key];
+        return `<div class="dup-group" data-dup-group="${esc(g.key)}">
+          <div class="dup-head"><div class="sub-icon" style="width:36px;height:36px">${logoHtml(g.keep)}</div><div class="dup-head-main"><b>${esc(g.name)}</b><small>${g.members.length} entries${g.possible.length ? ` · ${g.possible.length} with a different price or plan` : ''}</small></div><button class="link-btn" data-action="dup-ignore" data-key="${esc(g.key)}">Keep all</button></div>
+          ${g.members.map(s => {
+            const isKeep = s.id === keepId, rm = dupRemove[g.key] && dupRemove[g.key].has(s.id);
+            const meta = [`${money(s.price)}/${s.cycle === 'yearly' ? 'yr' : 'mo'}`, s.status !== 'active' ? s.status : '', s.paymentMethod ? `💳 ${s.paymentMethod}` : '', s.startDate ? `from ${s.startDate.split('-').reverse().join('/')}` : '', s.accountEmail ? `✉️ ${s.accountEmail}` : '', s.notes ? s.notes : '', added(s) ? `added ${added(s)}` : ''].filter(Boolean).join(' · ');
+            return `<div class="dup-row ${isKeep ? 'keep' : rm ? 'rm' : ''}">
+              <label class="dup-pick" title="Keep this one"><input type="radio" name="dupkeep-${esc(g.key)}" data-dup-keep="${s.id}" data-key="${esc(g.key)}" ${isKeep ? 'checked' : ''}/><span>Keep</span></label>
+              <div class="dup-main"><div class="dup-meta">${esc(meta)}</div></div>
+              ${isKeep ? `<span class="disc-badge">keeping</span>` : `<label class="disc-check" title="Remove this copy"><input type="checkbox" data-dup-rm="${s.id}" data-key="${esc(g.key)}" ${rm ? 'checked' : ''}/><span class="disc-box"></span></label>`}
+            </div>`;
+          }).join('')}
+        </div>`;
+      }).join('')}
+      <div class="sheet-actions">
+        <button class="btn-secondary" data-close="dup-overlay">Later</button>
+        <button class="btn-primary" data-action="dup-remove" ${total ? '' : 'disabled'}>Remove ${total || ''} ${total === 1 ? 'copy' : 'copies'}</button>
+      </div>`;
+  }
+  function dupSetKeep(key, id) {
+    dupChoice[key] = id;
+    // the kept one can't also be removed; an exact twin of the kept one gets pre-ticked
+    const g = findDuplicateGroups().find(x => x.key === key); if (!g) return;
+    const keep = g.members.find(s => s.id === id); if (!keep) return;
+    dupRemove[key] = new Set(g.members.filter(s => s !== keep && s.cycle === keep.cycle && Math.abs(Number(s.price) - Number(keep.price)) < 0.005).map(s => s.id));
+    renderDuplicates();
+  }
+  function dupToggleRemove(key, id, on) {
+    if (!dupRemove[key]) dupRemove[key] = new Set();
+    if (on) dupRemove[key].add(id); else dupRemove[key].delete(id);
+    const total = Object.values(dupRemove).reduce((a, s) => a + s.size, 0);
+    const b = document.querySelector('[data-action="dup-remove"]'); if (b) { b.disabled = !total; b.textContent = `Remove ${total || ''} ${total === 1 ? 'copy' : 'copies'}`.replace('  ', ' '); }
+    const row = document.querySelector(`[data-dup-rm="${id}"]`); if (row) row.closest('.dup-row').classList.toggle('rm', on);
+  }
+  function dupIgnoreGroup(key) {
+    const g = findDuplicateGroups().find(x => x.key === key); if (!g) return;
+    settings.dupIgnore = settings.dupIgnore || [];
+    g.members.forEach((a, i) => g.members.slice(i + 1).forEach(b => { const k = dupPairKey(a, b); if (!settings.dupIgnore.includes(k)) settings.dupIgnore.push(k); }));
+    saveSettings(); renderDuplicates(); render();
+  }
+  function dupRemoveSelected() {
+    const ids = Object.values(dupRemove).flatMap(s => [...s]);
+    if (!ids.length) return;
+    ids.forEach(id => remove(id));
+    toast(`Removed ${plural(ids.length, 'duplicate')}`);
+    const left = findDuplicateGroups();
+    if (left.length) renderDuplicates(); else { $('dup-overlay').classList.remove('open'); }
+    render();
+  }
+  // Prompt once per new set of duplicates (after an import, a sync, or on open)
+  function maybePromptDuplicates(reason) {
+    const groups = findDuplicateGroups();
+    if (!groups.length) return;
+    const key = dupSetKey(groups);
+    if (settings.dupPromptedKey === key) return;
+    settings.dupPromptedKey = key; saveSettings();
+    if (document.querySelector('.sheet-overlay.open')) return; // don't stack on top of another sheet
+    openDuplicates();
   }
 
   // ── Find subscriptions from email ────────────────────────────────────
@@ -1117,6 +1275,7 @@
       commit(sub); n++;
     }
     toast(`Added ${plural(n, 'subscription')}${disc.email ? ' from ' + disc.email : ''}`);
+    if (findDuplicateGroups().length) { closeDiscover(); setTimeout(() => maybePromptDuplicates('import'), 500); return; }
     disc.lastImport = { n, email: disc.email }; disc.items = []; disc.email = ''; disc.stats = null; disc.editing = -1; disc.error = '';
     disc.state = isNative() ? 'handoff' : 'choose';
     if (isNative()) { closeDiscover(); showView('home'); }
@@ -1461,10 +1620,15 @@
         case 'join-submit': submitJoin(); break;
         case 'share-invite': shareText('Share my SubTracker list', `Join my subscription list on SubTracker — use invite code ${fmtCode(t.dataset.code)} or open:`, inviteUrl(t.dataset.code)); break;
         case 'copy-code': copyText(fmtCode(t.dataset.code)).then(ok => toast(ok ? 'Code copied' : 'Could not copy')); break;
+        case 'share-copy': copyText(t.dataset.text).then(ok => toast(ok ? 'Link copied' : 'Could not copy')); break;
         case 'leave-list': leaveList(); break;
         case 'remove-member': { const r = t.closest('.member-row'); removeMember(t.dataset.user, r ? (r.querySelector('.set-row-label') || {}).textContent : ''); break; }
         case 'age-gate': openAgeGate(); break;
         case 'age-unlock': unlockAdult(); break;
+        case 'duplicates': openDuplicates(); break;
+        case 'duplicates-from-review': $('review-overlay').classList.remove('open'); openDuplicates(); break;
+        case 'dup-remove': dupRemoveSelected(); break;
+        case 'dup-ignore': dupIgnoreGroup(t.dataset.key); break;
         case 'discover': openDiscover(''); break;
         case 'discover-paste': if (!$('discover-overlay').classList.contains('open')) openDiscover(''); disc.state = 'paste'; disc.error = ''; renderDiscover(); setTimeout(() => { const ta = $('disc-paste'); if (ta) ta.focus(); }, 50); break;
         case 'discover-paste-go': discoverPasteGo(); break;
@@ -1510,6 +1674,8 @@
       if (e.target.id === 'set-notify-days') { settings.notifyDays = +e.target.value; saveSettings(); scheduleNotifications(); if (profile && profile.email_reminders) setEmailReminders(true); }
       if (e.target.id === 'set-adult') { if (e.target.checked) { e.target.checked = false; openAgeGate(); } else lockAdult(); }
       if (e.target.id === 'age-confirm') { const b = document.querySelector('[data-action="age-unlock"]'); if (b) b.disabled = !e.target.checked; }
+      if (e.target.dataset.dupKeep) { dupSetKeep(e.target.dataset.key, e.target.dataset.dupKeep); }
+      if (e.target.dataset.dupRm) { dupToggleRemove(e.target.dataset.key, e.target.dataset.dupRm, e.target.checked); }
       if (e.target.dataset.discCheck !== undefined) { const it = disc.items[+e.target.dataset.discCheck]; if (it) { it.checked = e.target.checked; const n = disc.items.filter(x => x.checked).length; const b = document.querySelector('[data-action="discover-import"]'); if (b) { b.disabled = !n; b.textContent = `Add ${n || ''} to my list`.replace('  ', ' '); } e.target.closest('.disc-item').classList.toggle('on', it.checked); } }
       if (e.target.dataset.discField === 'cycle' || e.target.dataset.discField === 'status' || e.target.dataset.discField === 'lastDate') { const it = disc.items[+e.target.dataset.i]; if (it) it[e.target.dataset.discField] = e.target.value; }
       if (e.target.id === 'import-file' && e.target.files[0]) { importJSON(e.target.files[0]); e.target.value = ''; }
@@ -1549,6 +1715,7 @@
       window.Sync.on('onAuth', u => { if (!u) { listInfo = null; profile = null; } render(); if (discoverOpen()) renderDiscover(); if (u && settings.pendingInvite) setTimeout(applyPendingInvite, 400); });
       window.Sync.on('onStatus', st => { syncState = st; if (view === 'settings') renderSettings(); });
       window.Sync.on('onList', () => { listInfoFor = null; if (view === 'settings') renderSettings(); });
+      window.Sync.on('onPulled', () => { setTimeout(() => maybePromptDuplicates('sync'), 600); });
       window.Sync.init();
     }
     const onboarding = maybeOnboard();
@@ -1561,7 +1728,7 @@
     if (connect && !isNative()) { settings.pendingConnect = connect; saveSettings(); }
     else if (settings.pendingConnect && !isNative()) connect = settings.pendingConnect; // came back after signing in / a reload
     if (connect && !isNative()) { setTimeout(() => openDiscover(connect === '1' ? '' : connect), onboarding ? 0 : 300); }
-    else if (!onboarding) maybePromptAuth(false);
+    else if (!onboarding) { maybePromptAuth(false); setTimeout(() => maybePromptDuplicates('boot'), 900); }
     discoverResume();
 
     // iOS install tip
