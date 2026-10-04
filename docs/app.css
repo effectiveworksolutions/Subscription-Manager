@@ -326,6 +326,7 @@ button{font-family:var(--font)}
 #share-overlay{z-index:235}
 #age-overlay{z-index:240}
 #discover-overlay{z-index:228}
+#dup-overlay{z-index:227}
 .sheet.sheet-wide{max-width:640px}
 .sheet{background:var(--surface);border-radius:22px 22px 0 0;border:1px solid var(--border-strong);border-bottom:none;width:100%;max-width:600px;max-height:95vh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 20px 20px;padding-bottom:calc(20px + var(--safe-b));box-shadow:0 -20px 60px rgba(0,0,0,.6);animation:slideUp .28s cubic-bezier(.34,1.2,.64,1)}
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
@@ -488,3 +489,26 @@ button{font-family:var(--font)}
 .disc-why{font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:2px}
 .disc-why b{color:var(--text)}
 .link-btn.inline{display:inline;padding:0 2px;font-size:inherit;vertical-align:baseline}
+
+/* ── Duplicates ─────────────────────────────────────────────────────── */
+.badge-duplicate{background:var(--warn-light);color:var(--warn)}
+.review-banner.dup-banner{border-color:rgba(245,158,11,.45);background:linear-gradient(135deg,rgba(245,158,11,.18),rgba(245,158,11,.05))}
+.review-banner.dup-banner .review-banner-ic{background:var(--warn-light)}
+.dup-group{background:var(--surface2);border:1px solid rgba(245,158,11,.3);border-radius:var(--r);padding:12px;margin-bottom:10px}
+.dup-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.dup-head-main{flex:1;min-width:0}
+.dup-head-main b{display:block;font-size:14px;color:var(--text)}
+.dup-head-main small{display:block;font-size:12px;color:var(--text-faint);margin-top:1px}
+.dup-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;border:1px solid var(--border);margin-top:6px;background:var(--surface)}
+.dup-row.keep{border-color:rgba(52,211,153,.4)}
+.dup-row.rm{border-color:rgba(248,113,113,.4);opacity:.85}
+.dup-row.rm .dup-meta{text-decoration:line-through;color:var(--text-faint)}
+.dup-pick{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);cursor:pointer;flex-shrink:0}
+.dup-pick input{accent-color:var(--success);width:16px;height:16px;margin:0}
+.dup-main{flex:1;min-width:0}
+.dup-meta{font-size:13px;color:var(--text);line-height:1.4;word-break:break-word}
+.finding-chip.accent{background:var(--warn-light);color:var(--warn);border-color:rgba(245,158,11,.4)}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.btn-row .btn-primary,.btn-row .btn-secondary{flex:1;min-width:110px}
+.btn-link{display:flex;align-items:center;justify-content:center;text-decoration:none}
+.share-link{user-select:all;-webkit-user-select:all;cursor:text}
