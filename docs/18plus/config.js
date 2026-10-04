@@ -6,7 +6,7 @@ window.SUBTRACKER_CONFIG = {
   APP_URL: 'https://effectiveworksolutions.github.io/Subscription-Manager/',
   EDITION: '18plus',
   EDITION_URL: 'https://effectiveworksolutions.github.io/Subscription-Manager/18plus/',
-  APP_VERSION: '1.3.0',
+  APP_VERSION: '1.3.1',
   CURRENCY: '$',
   // "Find subscriptions from email" — leave blank to hide a provider.
   // Google Cloud → APIs & Services → Credentials → OAuth client (Web application):

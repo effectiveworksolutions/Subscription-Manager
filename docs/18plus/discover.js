@@ -175,11 +175,42 @@
   const AGGREGATORS = { 'paypal.com': 'PayPal', 'paypal.com.au': 'PayPal', 'apple.com': 'Apple', 'itunes.com': 'Apple', 'google.com': 'Google Play', 'stripe.com': 'Stripe', 'shopify.com': 'Shopify', 'squareup.com': 'Square', 'afterpay.com': 'Afterpay', 'zip.co': 'Zip', 'paddle.com': 'Paddle', 'fastspring.com': 'FastSpring', 'gumroad.com': 'Gumroad', 'patreon.com': 'Patreon', 'amazon.com': 'Amazon', 'amazon.com.au': 'Amazon' };
   const NOISE_NAME_RE = /\b(no[- ]?reply|do[- ]?not[- ]?reply|noreply|billing|receipts?|invoices?|payments?|notifications?|team|support|accounts?|info|mailer|news|hello|customer (service|care))\b/gi;
 
-  function findService(name, domain) {
+  // Domains many different products send from — a sender there says nothing by itself
+  const SHARED_DOMAINS = new Set(['microsoft.com', 'live.com', 'outlook.com', 'google.com', 'apple.com', 'amazon.com', 'amazon.com.au', 'amazon.co.uk', 'samsung.com', 'sony.com', 'playstation.com']);
+  const hostOf = addr => String(addr || '').toLowerCase().replace(/^.*@/, '').replace(/[>\s].*$/, '').replace(/^www\./, '');
+  const isShared = d => SHARED_DOMAINS.has(d) || LIB().filter(s => s.domain && baseDomain(s.domain) === d).length > 1;
+  // Which library entry is named in this text? (longest name wins; aliases count)
+  function serviceNamedIn(text, candidates) {
+    const t = ' ' + clean(text).toLowerCase() + ' ';
+    const al = ALIASES();
+    const names = [];
+    for (const s of (candidates || LIB())) {
+      if (!s.name || s.name === 'Custom…') continue;
+      names.push([s.name.toLowerCase(), s]);
+      for (const [k, v] of Object.entries(al)) if (v === s.name && k.length >= 4) names.push([k.toLowerCase(), s]);
+    }
+    names.sort((a, b) => b[0].length - a[0].length);
+    for (const [n, s] of names) {
+      if (n.length < 4) continue;
+      const re = new RegExp('(^|[^a-z0-9])' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^a-z0-9]|$)', 'i');
+      if (re.test(t)) return s;
+    }
+    return null;
+  }
+  // name: sender display name · domain: sender address/host · text: subject + body (used for shared domains)
+  function findService(name, domain, text) {
     const lib = LIB();
-    const d = baseDomain(domain || '');
-    let svc = d ? lib.find(s => s.domain && (s.domain === d || baseDomain(s.domain) === d)) : null;
-    if (!svc && name) {
+    const host = hostOf(domain), d = baseDomain(host);
+    let svc = null;
+    if (host) {
+      svc = lib.find(s => s.domain && s.domain.replace(/^www\./, '') === host) || null; // exact host: copilot.microsoft.com, music.apple.com
+      if (!svc) {
+        const cands = lib.filter(s => s.domain && baseDomain(s.domain) === d);
+        if (cands.length === 1 && !isShared(d) && baseDomain(cands[0].domain) === cands[0].domain.replace(/^www\./, '')) svc = cands[0]; // netflix.com owns mailer.netflix.com
+        else if (cands.length || isShared(d)) svc = serviceNamedIn(text || ''); // several products share this domain → the one the email names
+      }
+    }
+    if (!svc && name && !isShared(d)) {
       const key = clean(name).toLowerCase();
       svc = lib.find(s => s.name.toLowerCase() === key) || (ALIASES()[key] ? lib.find(s => s.name === ALIASES()[key]) : null)
         || lib.find(s => s.name.length > 3 && key.includes(s.name.toLowerCase()));
@@ -198,7 +229,8 @@
       if (m) return clean(m[1]).replace(/\s*[-–,]\s*$/, '');
     }
     if (agg === 'Google Play') {
-      m = t.match(/\bItem\s*:?\s*\n?\s*([^\n]+)/i) || s.match(/receipt from\s+(.+?)(?:\s*[-–|(]|$)/i) || t.match(/\(([^()\n]{2,40})\)\s*\n?[^\n]*\$/);
+      // "Item: Spotify" · "Item\nSpotify" · a table header "Item  Price" followed by the item on the next line
+      m = t.match(/\bItems?\s*:?[ \t]*(?:(?:price|amount|qty|quantity|total)[ \t]*)*\n\s*([^\n]+)/i) || t.match(/\bItems?\s*:\s*([^\n]+)/i) || s.match(/receipt from\s+(.+?)(?:\s*[-–|(]|$)/i) || t.match(/\(([^()\n]{2,40})\)\s*\n?[^\n]*\$/);
       if (m) return clean(m[1]).replace(/\s*\(.*$/, '');
     }
     if (agg === 'Stripe' || agg === 'Paddle' || agg === 'FastSpring' || agg === 'Shopify' || agg === 'Square' || agg === 'Gumroad') {
@@ -231,12 +263,13 @@
     const agg = AGGREGATORS[domain] || '';
     let name = '', svc = null, via = '', aggKind = '';
     if (agg) {
-      const merchant = merchantFromAggregator(agg, msg.subject, msg.text || msg.snippet);
+      // table headers sometimes get captured with the item ("Price Tile Premium", "Item Spotify") — drop them
+      const merchant = merchantFromAggregator(agg, msg.subject, msg.text || msg.snippet).replace(/^(?:(?:price|item|items|description|product|qty|quantity|amount|total|subtotal)\b\s*)+/i, '').replace(/\s+(?:price|amount|total|qty)$/i, '').trim();
       via = agg; aggKind = aggregatorKind(agg, msg.subject, msg.text || msg.snippet);
       if (merchant) { svc = findService(merchant, ''); name = svc ? svc.name : merchant.replace(/\s+(pty\.? ltd\.?|ltd\.?|inc\.?|llc|limited|corp\.?|co\.?)\s*$/i, '').replace(/,\s*$/, ''); }
       else name = agg; // unmatched aggregator receipt: keep as "PayPal" / "Apple" so the person can rename it
     } else {
-      svc = findService(f.name, domain);
+      svc = findService(f.name, f.email, (msg.subject || '') + '\n' + String(msg.text || msg.snippet || '').slice(0, 800));
       name = svc ? svc.name : clean(f.name.replace(NOISE_NAME_RE, ' ').replace(/[<>"]/g, '')) || (domain.split('.')[0] || 'Unknown').replace(/^\w/, c => c.toUpperCase());
     }
     const key = (svc ? svc.name : (via ? via + ':' + name : domain || name)).toLowerCase();
@@ -275,8 +308,8 @@
       msgs.sort((a, b) => b.date.localeCompare(a.date));
       const receipts = msgs.filter(m => m.receipt && !m.failed && !m.cancelled);
       const svc = msgs.find(m => m.svc) ? msgs.find(m => m.svc).svc : null;
-      const relevant = receipts.length ? receipts : (svc && msgs.length >= 2 ? msgs.filter(m => !m.marketing) : []);
-      if (!relevant.length) continue;
+      const relevant = receipts.length ? receipts : (svc ? msgs.filter(m => !m.marketing && m.subWords) : []);
+      if (!relevant.length || (!receipts.length && relevant.length < 2)) continue;
       const newest = relevant[0];
       const priced = relevant.find(m => m.amount != null);
       const price = priced ? priced.amount : null;
@@ -338,7 +371,11 @@
       const sn = clean(s.name).toLowerCase();
       if (sn === n) return true;
       if (svc && (sn === svc.name.toLowerCase() || ALIASES()[sn] === svc.name)) return true;
-      if (domain && s.domain && baseDomain(s.domain) === baseDomain(domain)) return true;
+      if (domain && s.domain) {
+        const a = hostOf(s.domain), b = hostOf(domain);
+        if (a === b) return true;
+        if (!isShared(baseDomain(a)) && !isShared(baseDomain(b)) && baseDomain(a) === baseDomain(b)) return true;
+      }
       return sn.length > 3 && (n.includes(sn) || sn.includes(n));
     }) || null;
   }
