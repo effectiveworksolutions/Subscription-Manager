@@ -439,7 +439,8 @@
       await loadScript('https://cdn.jsdelivr.net/npm/@azure/msal-browser@3/lib/msal-browser.min.js');
       if (!outlook._pca) {
         outlook._pca = new root.msal.PublicClientApplication({
-          auth: { clientId: CFG.MS_CLIENT_ID, authority: 'https://login.microsoftonline.com/common', redirectUri: location.origin + location.pathname },
+          // must match a registered SPA redirect URI exactly: the app folder, never index.html
+          auth: { clientId: CFG.MS_CLIENT_ID, authority: 'https://login.microsoftonline.com/common', redirectUri: location.origin + location.pathname.replace(/index\.html?$/i, '') },
           cache: { cacheLocation: 'sessionStorage' },
         });
         await outlook._pca.initialize();
@@ -449,7 +450,7 @@
       opts = opts || {};
       const pca = outlook._pca; if (!pca) throw new Error('Microsoft sign-in did not load — check your connection and try again');
       let r;
-      try { r = await pca.loginPopup({ scopes: outlook.scopes, prompt: 'select_account', loginHint: opts.loginHint || undefined }); }
+      try { r = await pca.loginPopup({ scopes: outlook.scopes, prompt: opts.loginHint ? undefined : 'select_account', loginHint: opts.loginHint || undefined }); }
       catch (e) {
         if (e && /user_cancelled|popup_window_error|empty_window_error|monitor_window_timeout/.test(e.errorCode || '')) {
           if (e.errorCode === 'user_cancelled') throw new Error('cancelled');
