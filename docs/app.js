@@ -1216,7 +1216,7 @@
       const itemHtml = (it, i) => {
         const svcLike = { name: it.name, domain: it.domain || (it.svc && it.svc.domain) || '', emoji: it.svc ? it.svc.emoji : '📦', category: it.svc ? it.svc.category : 'other' };
         const price = it.price != null ? `${it.currency && it.currency !== 'AUD' ? it.currency + ' ' : ''}${money(it.price)}${it.kind === 'oneoff' ? ' once' : it.kind === 'unsure' ? '' : '/' + (it.cycle === 'yearly' ? 'yr' : 'mo')}` : 'Price unknown';
-        const meta = [price, it.lastDate ? `last charged ${fmtIso(it.lastDate)}` : '', it.card || '', it.via ? `via ${it.via}` : '', it.count > 1 ? plural(it.count, 'receipt') : ''].filter(Boolean).join(' · ');
+        const meta = [price, it.lastDate ? (it.marketingOnly ? `last email ${fmtIso(it.lastDate)}` : `last charged ${fmtIso(it.lastDate)}`) : '', it.card || '', it.via ? `via ${it.via}` : '', it.count > 1 ? plural(it.count, it.marketingOnly ? 'email' : 'receipt') + (it.marketingOnly ? ', no receipts' : '') : ''].filter(Boolean).join(' · ');
         const editing = disc.editing === i;
         return `<div class="disc-item ${it.checked ? 'on' : ''}" data-disc="${i}">
           <div class="disc-row">
@@ -1245,7 +1245,7 @@
         </div>`;
       };
       html = `
-        <div class="sheet-title">✉️ ${mainIdx.length ? `Found ${plural(fresh.length, 'subscription')}` : items.length ? 'No subscriptions found' : 'Nothing found'}</div>
+        <div class="sheet-title">✉️ ${fresh.length ? `Found ${plural(fresh.length, 'subscription')}` : known.length ? 'Nothing new — already on your list' : items.length ? 'No subscriptions found' : 'Nothing found'}</div>
         <div class="disc-summary">${disc.email ? esc(disc.email) + ' · ' : ''}${disc.stats && disc.stats.scanned != null ? `${disc.stats.scanned} emails checked · ` : ''}${known.length ? `${known.length} already on your list · ` : ''}${oneIdx.length ? `${plural(oneIdx.length, 'one-off purchase')} set aside · ` : ''}${mainIdx.length ? 'tick what you want to add' : ''}</div>
         ${items.length ? '' : `<div class="finding finding-ok"><div class="finding-detail">No receipts or renewal emails turned up in the last 12 months. If your bills go to another address, scan that mailbox too — or paste a receipt.</div></div>`}
         ${items.length && !mainIdx.length ? `<div class="finding finding-ok"><div class="finding-detail">Everything we found looks like a one-off purchase rather than something that renews. They're listed below in case one of them is a subscription after all.</div></div>` : ''}
