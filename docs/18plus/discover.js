@@ -70,6 +70,17 @@
   const CANCEL_RE = /\b(cancel(l)?ed|cancellation|has ended|membership ended|subscription ended|we'?re sorry to see you go|sorry to see you go|will not renew|won'?t renew|has expired|expired)\b/i;
   const TRIAL_RE = /\b(free trial|trial (period|ends|ending|started|has started|will end|expires)|your trial|start(ed)? your trial|trial subscription)\b/i;
   const FAILED_RE = /\b(payment (failed|declined|unsuccessful|didn'?t go through|could not|was declined)|declined|unable to process|update your payment|action required)\b/i;
+  // One-off purchase vs subscription. Shops talk about orders, shipping and tracking; subscriptions talk about
+  // plans, renewals and billing periods. Footer boilerplate ("unsubscribe", "manage email preferences") is
+  // stripped first so it can't masquerade as subscription wording.
+  const SHOP_RE = /\b(order (confirmation|confirmed|received|update|summary|details|#|no\.?|number)|your order (has|is|was|will|#)|(has|have) (been )?(shipped|dispatched|despatched|delivered|sent)|on its way|out for delivery|track(ing)? (your|number|info|details|link)|track your (order|package|parcel|delivery)|delivery (address|update|estimate|date|window)|shipping (address|confirmation|update|method)|estimated (delivery|arrival)|ready for (pickup|pick-up|collection)|click (and|&) collect|thanks? (you )?for (shopping|your purchase|your order)|your purchase (from|at|of)|item(s)? (shipped|dispatched|ordered|purchased)|qty|quantity|parcel|courier|returns? (policy|portal)|shop(ped)? (with|at)|checkout)\b/i;
+  const SUB_WORDS_RE = /\b(subscription|subscriptions|membership|member(ship)? (fee|renewal|plan)|renew(al|s|ed|ing)?|auto-?renew(al|s|ing)?|recurring|billing (period|cycle|date|statement)|next (billing|payment|charge|renewal|invoice)|billed (monthly|yearly|annually|weekly|every)|charged (monthly|yearly|annually|weekly|every)|per (month|year|week|annum)|monthly|yearly|annual(ly)?|weekly|quarterly|your plan|plan (renewal|renews|has renewed|will renew)|(pro|premium|plus|basic|standard|family|individual|student|team|business|starter|unlimited) plan|free trial|trial (ends|ended|period)|will be charged|you will be billed|continues? (automatically|until)|until (you )?cancel|cancel (any ?time|at any time)|streaming|premium|pass)\b/i;
+  const FOOTER_RE = /(unsubscribe[^\n.]*|manage (your )?(email |notification )?(subscriptions?|preferences)[^\n.]*|email (subscription|preferences)[^\n.]*|subscription preferences[^\n.]*|subscribe to (our )?(newsletter|updates|emails)[^\n.]*|newsletter[^\n.]*|you('re| are) receiving this (email|message)[^\n.]*)/gi;
+  function purchaseSignals(subject, text) {
+    const s = clean(subject);
+    const body = String(text || '').slice(0, 1800).replace(FOOTER_RE, ' ');
+    return { shop: SHOP_RE.test(s) || SHOP_RE.test(body.slice(0, 700)), subWords: SUB_WORDS_RE.test(s) || SUB_WORDS_RE.test(body) };
+  }
 
   function classify(subject, snippet) {
     const s = clean(subject), both = s + ' ' + clean(snippet);
@@ -204,14 +215,24 @@
     }
     return '';
   }
+  // What an aggregator receipt says about the item itself (independent of the merchant name)
+  function aggregatorKind(agg, subject, text) {
+    const s = clean(subject), t = String(text || ''), both = s + '\n' + t;
+    if (agg === 'Apple') return /\((?:Monthly|Yearly|Annual|Weekly|1 Month|1 Year|6 Months|3 Months|Quarterly)\)/.test(t) || /\b(subscription|renew)/i.test(both) ? 'subscription' : 'oneoff';
+    if (agg === 'Google Play') return /\b(subscription|renew|monthly|yearly|annual)/i.test(both) ? 'subscription' : /\b(in-app|one[- ]time|movie|rent|book|app)\b/i.test(both) ? 'oneoff' : 'unsure';
+    if (agg === 'PayPal') return /\b(automatic payment|subscription|recurring|billing agreement|preapproved)/i.test(both) ? 'subscription' : 'unsure';
+    if (agg === 'Amazon') return /\b(prime|kindle unlimited|audible|amazon music|membership|subscribe (&|and) save)\b/i.test(both) ? 'subscription' : 'oneoff';
+    if (agg === 'Afterpay' || agg === 'Zip') return /\b(subscription|membership|recurring)\b/i.test(both) ? 'subscription' : 'oneoff';
+    return ''; // Stripe & co: decided by the wording like any other sender
+  }
   function identify(msg) {
     const f = parseFrom(msg.from);
     const domain = baseDomain(f.email);
     const agg = AGGREGATORS[domain] || '';
-    let name = '', svc = null, via = '';
+    let name = '', svc = null, via = '', aggKind = '';
     if (agg) {
       const merchant = merchantFromAggregator(agg, msg.subject, msg.text || msg.snippet);
-      via = agg;
+      via = agg; aggKind = aggregatorKind(agg, msg.subject, msg.text || msg.snippet);
       if (merchant) { svc = findService(merchant, ''); name = svc ? svc.name : merchant.replace(/\s+(pty\.? ltd\.?|ltd\.?|inc\.?|llc|limited|corp\.?|co\.?)\s*$/i, '').replace(/,\s*$/, ''); }
       else name = agg; // unmatched aggregator receipt: keep as "PayPal" / "Apple" so the person can rename it
     } else {
@@ -219,7 +240,7 @@
       name = svc ? svc.name : clean(f.name.replace(NOISE_NAME_RE, ' ').replace(/[<>"]/g, '')) || (domain.split('.')[0] || 'Unknown').replace(/^\w/, c => c.toUpperCase());
     }
     const key = (svc ? svc.name : (via ? via + ':' + name : domain || name)).toLowerCase();
-    return { key, name, svc, domain: svc ? svc.domain : (via ? '' : domain), via };
+    return { key, name, svc, domain: svc ? svc.domain : (via ? '' : domain), via, aggKind };
   }
 
   // ── parse one message into a candidate ──────────────────────────────
@@ -230,9 +251,10 @@
     const who = identify({ ...msg, text });
     const amount = pickAmount(text) || pickAmount(msg.subject);
     const cycle = detectCycle(text, amount) || detectCycle(msg.subject, null);
+    const sig = purchaseSignals(msg.subject, text);
     return {
       id: msg.id, date: isoDate(msg.date), subject: clean(msg.subject),
-      ...who, ...cls,
+      ...who, ...cls, ...sig,
       amount: amount ? amount.value : null, currency: amount ? amount.currency : '',
       cycle, card: detectCard(text), renews: detectRenewalDate(text), hasText: !!msg.text,
     };
@@ -276,22 +298,37 @@
       const name = newest.name || key;
       const card = relevant.map(m => m.card).find(Boolean) || (newest.via === 'PayPal' ? 'PayPal' : '');
       const ex = matchExisting(existing, name, svc, newest.domain);
-      const confidence = (svc && price != null) ? 'high' : price != null ? 'medium' : 'low';
+      // Subscription, one-off purchase, or can't tell?  Known services and anything that renews on a schedule
+      // or talks about plans/renewals is a subscription; order/shipping emails with no such wording are a shop.
+      const aggKinds = relevant.map(m => m.aggKind).filter(Boolean);
+      const subWords = relevant.some(m => m.subWords), shop = relevant.some(m => m.shop);
+      let kind, why = '';
+      if (svc) kind = 'subscription';
+      else if (aggKinds.includes('subscription')) kind = 'subscription';
+      else if (cycleSource === 'spacing') { kind = 'subscription'; why = 'charged on a regular schedule'; }
+      else if (subWords && !(shop && aggKinds.includes('oneoff'))) kind = 'subscription';
+      else if (aggKinds.includes('oneoff') && !subWords) { kind = 'oneoff'; why = newest.via === 'Amazon' ? 'an Amazon order, not a membership' : `a one-time purchase through ${newest.via}`; }
+      else if (shop && !subWords) { kind = 'oneoff'; why = receipts.length > 1 ? `${receipts.length} separate orders, no renewal wording` : 'order / shipping email, no renewal wording'; }
+      else if (receipts.length >= 2) { kind = 'subscription'; why = 'several receipts, timing unclear'; }
+      else { kind = 'unsure'; why = 'one receipt and no renewal wording — could be a one-time purchase'; }
+      if (kind === 'oneoff') note = [note, `Looks like a one-off purchase (${why})`].filter(Boolean).join(' · ');
+      else if (kind === 'unsure') note = [note, `One-off or subscription? ${why}`].filter(Boolean).join(' · ');
+      const confidence = kind !== 'subscription' ? 'low' : (svc && price != null) ? 'high' : price != null ? 'medium' : 'low';
       items.push({
         key, name, svc, domain: newest.domain, via: newest.via,
         price: finalPrice, currency, cycle: finalCycle, cycleSource, note,
         lastDate: newest.date, firstDate: relevant[relevant.length - 1].date, renews: relevant.map(m => m.renews).find(Boolean) || '',
         count: relevant.length, card, status: cancelled ? 'cancelled' : trial ? 'trial' : 'active',
-        confidence, existing: ex,
+        confidence, existing: ex, kind, oneOff: kind === 'oneoff',
         marketingOnly: !receipts.length,
         checked: !ex && !cancelled && confidence !== 'low',
         evidence: relevant.slice(0, 4).map(m => ({ id: m.id, subject: m.subject, date: m.date, amount: m.amount })),
         accountEmail: opts.accountEmail || '', provider: opts.provider || '',
       });
     }
-    // best first: high confidence, then most recent
-    const rank = { high: 0, medium: 1, low: 2 };
-    items.sort((a, b) => (a.existing ? 1 : 0) - (b.existing ? 1 : 0) || rank[a.confidence] - rank[b.confidence] || b.lastDate.localeCompare(a.lastDate));
+    // best first: subscriptions, then "unsure", one-off purchases last; within that high confidence, then most recent
+    const rank = { high: 0, medium: 1, low: 2 }, krank = { subscription: 0, unsure: 1, oneoff: 2 };
+    items.sort((a, b) => krank[a.kind] - krank[b.kind] || (a.existing ? 1 : 0) - (b.existing ? 1 : 0) || rank[a.confidence] - rank[b.confidence] || b.lastDate.localeCompare(a.lastDate));
     return items;
   }
   function matchExisting(existing, name, svc, domain) {
@@ -371,8 +408,8 @@
         if (!g) return reject(new Error('Google sign-in did not load — check your connection and try again'));
         const tc = g.initTokenClient({
           client_id: CFG.GOOGLE_CLIENT_ID, scope: gmail.scope, login_hint: opts.loginHint || undefined,
-          callback: r => (r && r.access_token) ? resolve({ provider: 'gmail', token: r.access_token, expiresAt: Date.now() + (r.expires_in || 3600) * 1000 }) : reject(new Error(r && r.error === 'access_denied' ? 'cancelled' : (r && r.error) || 'cancelled')),
-          error_callback: e => reject(new Error(e && e.type === 'popup_closed' ? 'cancelled' : (e && e.type) || 'popup_failed')),
+          callback: r => (r && r.access_token) ? resolve({ provider: 'gmail', token: r.access_token, expiresAt: Date.now() + (r.expires_in || 3600) * 1000 }) : reject(new Error(r && r.error === 'access_denied' ? 'cancelled' : r && r.error ? 'Google sign-in failed: ' + r.error : 'cancelled')),
+          error_callback: e => reject(new Error(e && e.type === 'popup_closed' ? 'cancelled' : e && e.type === 'popup_failed_to_open' ? "Your browser blocked Google's sign-in window — allow popups for this site, then tap Connect again." : 'Google sign-in failed' + (e && e.type ? ' (' + e.type + ')' : ''))),
         });
         tc.requestAccessToken({ prompt: opts.prompt || '' });
       });
@@ -416,6 +453,22 @@
       }, (d, t) => onProgress && onProgress({ stage: 'headers', done: d, total: t }));
       return metas.filter(Boolean);
     },
+    // Everything about ONE service: its own senders, its name in a subject, and aggregator receipts naming it
+    async searchFor(session, { name, domain, months }) {
+      const age = `newer_than:${months || 6}m`;
+      const q = [];
+      if (domain) q.push(`${age} from:(${domain})`);
+      if (name) { q.push(`${age} subject:("${name}")`); q.push(`${age} "${name}" from:(${AGG_DOMAINS.join(' OR ')})`); }
+      const ids = new Set();
+      for (const query of q) { try { (await gmail.listIds(session, query, 80)).forEach(id => ids.add(id)); } catch (e) { if (/expired|refused/.test(e.message)) throw e; } }
+      const all = [...ids].slice(0, 160);
+      const metas = await pool(all, 8, async id => {
+        const m = await gmail.api(session, '/messages/' + id, { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] });
+        const h = {}; (m.payload && m.payload.headers || []).forEach(x => { h[x.name.toLowerCase()] = x.value; });
+        return { id, from: h.from || '', subject: h.subject || '', date: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : h.date || '', snippet: m.snippet || '' };
+      });
+      return metas.filter(Boolean);
+    },
     async body(session, id) {
       const m = await gmail.api(session, '/messages/' + id, { format: 'full' });
       const out = { text: '', html: '' };
@@ -430,6 +483,29 @@
 
   // ═══ Outlook / Hotmail / Microsoft 365 (MSAL + Graph) ═══════════════
   const GRAPH = 'https://graph.microsoft.com/v1.0';
+  const RESUME_KEY = 'subtracker_discover_resume';
+  // this tab IS a Microsoft sign-in popup (window.name "msal.…" + an opener) — MSAL refuses to open another popup from here
+  const inMsalPopup = () => { try { return !!root.opener && root.opener !== root && /^msal\./.test(root.name || ''); } catch { return false; } };
+  const touchPhone = () => { try { return !!(root.matchMedia && root.matchMedia('(pointer: coarse)').matches) && /android|iphone|ipad|ipod|mobile/i.test(root.navigator.userAgent || ''); } catch { return false; } };
+  // Microsoft sent us back with an auth response in the URL fragment
+  const hasAuthResponse = () => { const h = String(root.location.hash || ''); return /[#&](code|error)=/.test(h) && /[#&]state=/.test(h); };
+  // MSAL / Entra errors → one sentence a person can act on
+  function msError(e) {
+    const code = String((e && (e.errorCode || e.code)) || '');
+    const msg = String((e && (e.errorMessage || e.message)) || '');
+    const all = code + ' ' + msg;
+    if (/user_cancelled|popup_closed/.test(code)) return new Error('cancelled');
+    if (/interaction_in_progress/.test(code)) return new Error("A Microsoft sign-in is already open in another tab or window. Finish it there (approve the prompt in the Microsoft Authenticator app if you use one) and come back here — or close that tab and tap Connect again.");
+    if (/block_nested_popups/.test(code)) return new Error("This tab was opened by Microsoft's sign-in. Switch back to the SubTracker tab you started from — the scan carries on there — or tap Connect again to sign in on this page.");
+    if (/monitor_window_timeout/.test(code)) return new Error("Microsoft's sign-in window took too long to come back. If you approved it in the Authenticator app, tap Connect again — it's quick the second time.");
+    if (/consent_required|AADSTS65001|AADSTS90094|AADSTS900941|admin approval|admin consent|needs permission/i.test(all)) return new Error("This mailbox belongs to an organisation that doesn't let apps read mail without an admin's approval. Ask your IT admin to approve SubTracker, or connect a personal Outlook / Hotmail account.");
+    if (/AADSTS50011|redirect_uri|reply url/i.test(all)) return new Error("Microsoft rejected this page's address (" + root.location.origin + root.location.pathname + "). The app owner needs to add it as a redirect URI in the Entra app registration.");
+    if (/AADSTS65004|access_denied|declined to consent/i.test(all)) return new Error("Microsoft didn't grant access — the scan needs the 'Read your mail' permission. Tap Connect and accept it to continue.");
+    if (/endpoints_resolution_error|network_error|post_request_failed|Failed to fetch|network/i.test(all)) return new Error("Couldn't reach Microsoft's sign-in — check your connection and try again.");
+    if (/no_cached_authority|state_not_found|state_mismatch|no_token_request_cache|invalid_state/i.test(all)) return new Error("The Microsoft sign-in got out of step with this page (usually a different tab finished it). Tap Connect to start again.");
+    const first = msg.split(/\r?\n/)[0].replace(/^\w+:\s*/, '').trim();
+    return new Error(first ? 'Microsoft sign-in failed: ' + first.slice(0, 160) : 'Microsoft sign-in failed — please try again');
+  }
   const outlook = {
     id: 'outlook', label: 'Outlook', hint: 'Outlook.com, Hotmail, Live and Microsoft 365 accounts',
     scopes: ['Mail.Read', 'User.Read'],
@@ -439,38 +515,52 @@
       await loadScript('https://cdn.jsdelivr.net/npm/@azure/msal-browser@3/lib/msal-browser.min.js');
       if (!outlook._pca) {
         outlook._pca = new root.msal.PublicClientApplication({
-          // must match a registered SPA redirect URI exactly: the app folder, never index.html
-          auth: { clientId: CFG.MS_CLIENT_ID, authority: 'https://login.microsoftonline.com/common', redirectUri: location.origin + location.pathname.replace(/index\.html?$/i, '') },
+          // must match a registered SPA redirect URI exactly: the app folder, never index.html.
+          // navigateToLoginRequestUrl:false → Microsoft sends us straight back to this page and we finish the sign-in here.
+          auth: { clientId: CFG.MS_CLIENT_ID, authority: 'https://login.microsoftonline.com/common', redirectUri: location.origin + location.pathname.replace(/index\.html?$/i, ''), navigateToLoginRequestUrl: false },
           cache: { cacheLocation: 'sessionStorage' },
+          // people need time for the account picker, a password and an Authenticator approval — MSAL's default gives them 60 s
+          system: { windowHashTimeout: 300000, iframeHashTimeout: 10000, loadFrameTimeout: 0 },
         });
         await outlook._pca.initialize();
       }
     },
+    // How the sign-in will happen on this device: 'popup' (desktop) or 'redirect' (phones, installed web apps,
+    // and tabs that are themselves a sign-in popup — those become a separate tab the opener can't always talk to,
+    // which is what Microsoft recommends anyway: sign in on this page, come straight back, carry on).
+    mode(opts) { opts = opts || {}; return opts.mode === 'redirect' || opts.mode === 'popup' ? opts.mode : (inMsalPopup() || touchPhone()) ? 'redirect' : 'popup'; },
     async connect(opts) {
       opts = opts || {};
       const pca = outlook._pca; if (!pca) throw new Error('Microsoft sign-in did not load — check your connection and try again');
+      const req = { scopes: outlook.scopes, prompt: opts.loginHint ? undefined : 'select_account', loginHint: opts.loginHint || undefined };
+      const viaRedirect = async () => {
+        try { sessionStorage.setItem(RESUME_KEY, 'outlook'); } catch {}
+        if (opts.onRedirect) { try { opts.onRedirect(); } catch {} }
+        await pca.loginRedirect(req);
+        return new Promise(() => {}); // the page navigates away; resume() picks it up when Microsoft sends us back
+      };
+      if (outlook.mode(opts) === 'redirect') return viaRedirect();
       let r;
-      try { r = await pca.loginPopup({ scopes: outlook.scopes, prompt: opts.loginHint ? undefined : 'select_account', loginHint: opts.loginHint || undefined }); }
+      try { r = await pca.loginPopup(req); }
       catch (e) {
-        if (e && /user_cancelled|popup_window_error|empty_window_error|monitor_window_timeout/.test(e.errorCode || '')) {
-          if (e.errorCode === 'user_cancelled') throw new Error('cancelled');
-          // popups blocked (iOS PWA etc.) → full-page redirect; the app resumes the scan on return
-          try { sessionStorage.setItem('subtracker_discover_resume', 'outlook'); } catch {}
-          await pca.loginRedirect({ scopes: outlook.scopes, prompt: 'select_account' });
-          return new Promise(() => {}); // page navigates away
-        }
-        throw e;
+        const code = String((e && e.errorCode) || '');
+        if (/popup_window_error|empty_window_error|block_nested_popups/.test(code)) return viaRedirect(); // popup blocked → sign in on this page instead
+        throw msError(e);
       }
-      return { provider: 'outlook', token: r.accessToken, expiresAt: r.expiresOn ? r.expiresOn.getTime() : Date.now() + 3600000, account: r.account, email: (r.account && r.account.username) || '' };
+      return outlook._session(r);
     },
+    _session(r) { return { provider: 'outlook', token: r.accessToken, expiresAt: r.expiresOn ? r.expiresOn.getTime() : Date.now() + 3600000, account: r.account, email: (r.account && r.account.username) || '' }; },
+    // true when this page load is the return leg of a full-page sign-in (checked synchronously at boot)
+    pendingResume() { try { if (sessionStorage.getItem(RESUME_KEY) === 'outlook') return true; } catch {} return hasAuthResponse(); },
     // After a loginRedirect round-trip: returns a session if one is waiting, else null
     async resume() {
-      let pending = ''; try { pending = sessionStorage.getItem('subtracker_discover_resume') || ''; sessionStorage.removeItem('subtracker_discover_resume'); } catch {}
-      if (pending !== 'outlook' || !outlook.ready()) return null;
+      let pending = ''; try { pending = sessionStorage.getItem(RESUME_KEY) || ''; if (pending) sessionStorage.removeItem(RESUME_KEY); } catch {}
+      if ((pending !== 'outlook' && !hasAuthResponse()) || !outlook.ready()) return null;
       await outlook.prepare();
-      const r = await outlook._pca.handleRedirectPromise();
+      let r;
+      try { r = await outlook._pca.handleRedirectPromise(); } catch (e) { throw msError(e); }
       if (!r || !r.accessToken) return null;
-      return { provider: 'outlook', token: r.accessToken, expiresAt: r.expiresOn ? r.expiresOn.getTime() : Date.now() + 3600000, account: r.account, email: (r.account && r.account.username) || '' };
+      return outlook._session(r);
     },
     async api(session, url, headers) {
       const r = await fetch(url.startsWith('http') ? url : GRAPH + url, { headers: { Authorization: 'Bearer ' + session.token, ...(headers || {}) } });
@@ -518,6 +608,29 @@
       }
       return [...seen.values()];
     },
+    async searchFor(session, { name, domain, months }) {
+      const since = new Date(); since.setMonth(since.getMonth() - (months || 6));
+      const sinceIso = since.toISOString().slice(0, 10);
+      const sel = '$select=id,subject,from,receivedDateTime,bodyPreview&$top=80';
+      const q = [];
+      if (domain) q.push(`from:${domain}`);
+      if (name) { q.push(`subject:"${name}"`); q.push(`"${name}" AND (${AGG_DOMAINS.slice(0, 8).map(d => `from:${d}`).join(' OR ')})`); }
+      const seen = new Map();
+      for (const query of q) {
+        const run = async qq => {
+          const url = `${GRAPH}/me/messages?$search=${encodeURIComponent('"' + qq.replace(/"/g, '\\"') + '"')}&${sel}`;
+          const j = await outlook.api(session, url);
+          for (const m of (j.value || [])) {
+            if (m.receivedDateTime && m.receivedDateTime < since.toISOString()) continue;
+            const fa = m.from && m.from.emailAddress || {};
+            seen.set(m.id, { id: m.id, from: `${fa.name || ''} <${fa.address || ''}>`, subject: m.subject || '', date: m.receivedDateTime || '', snippet: m.bodyPreview || '' });
+          }
+        };
+        try { try { await run(`${query} AND received>=${sinceIso}`); } catch (e) { if (/expired/.test(e.message)) throw e; await run(query); } }
+        catch (e) { if (/expired/.test(e.message)) throw e; }
+      }
+      return [...seen.values()];
+    },
     async body(session, id) {
       const m = await outlook.api(session, `/me/messages/${encodeURIComponent(id)}?$select=body,bodyPreview`, { Prefer: 'outlook.body-content-type="text"' });
       const b = m.body && m.body.content || '';
@@ -529,6 +642,8 @@
   };
 
   const providers = { gmail, outlook };
+  // Does this page load carry a sign-in to finish? (app.js checks this at boot before opening anything else)
+  const pendingResume = () => outlook.pendingResume();
 
   // ═══ the whole scan ══════════════════════════════════════════════════
   // opts: { months, existing, onProgress }
@@ -560,8 +675,41 @@
     return { email, items, scanned: metas.length, read: toFetch.length };
   }
 
+  // ═══ one subscription: what does the inbox say about it? ═════════════
+  // opts: { name, domain, aliases, months }  →  { email, matched, latest, receipts, cancelled, failed, trial, scanned }
+  async function check(session, opts) {
+    opts = opts || {};
+    const p = providers[session.provider];
+    const name = clean(opts.name), domain = opts.domain ? baseDomain(opts.domain) : '';
+    const names = [name, ...(opts.aliases || [])].map(x => clean(x).toLowerCase()).filter(x => x.length >= 3);
+    const email = session.email || await p.profile(session).catch(() => '');
+    const metas = await p.searchFor(session, { name, domain, months: opts.months || 6 });
+    const isOurs = pm => {
+      const n = String(pm.name || '').toLowerCase(), subj = String(pm.subject || '').toLowerCase();
+      if (domain && pm.domain && baseDomain(pm.domain) === domain) return true;
+      return names.some(x => n === x || n.includes(x) || x.includes(n) && n.length >= 4 || subj.includes(x));
+    };
+    let parsed = metas.map(parseMessage).filter(pm => pm.date && isOurs(pm));
+    parsed.sort((a, b) => b.date.localeCompare(a.date));
+    // read the newest few receipt-like emails properly (amount, card, cycle live in the body)
+    const toRead = parsed.filter(pm => pm.receipt && !pm.marketing).slice(0, 3);
+    await pool(toRead, 3, async pm => { const m = metas.find(x => x.id === pm.id); if (m) { m.text = await p.body(session, m.id); Object.assign(pm, parseMessage(m)); } });
+    const receipts = parsed.filter(pm => pm.receipt && !pm.failed && !pm.cancelled && !pm.marketing);
+    const cancelled = parsed.filter(pm => pm.cancelled);
+    const failed = parsed.filter(pm => pm.failed);
+    const trial = parsed.filter(pm => pm.trial);
+    const brief = pm => pm ? { id: pm.id, date: pm.date, subject: pm.subject, amount: pm.amount, currency: pm.currency, card: pm.card, cycle: pm.cycle, renews: pm.renews, via: pm.via, kind: pm.aggKind || '' } : null;
+    try { p.disconnect(session); } catch {}
+    return {
+      email, provider: session.provider, scanned: metas.length, matched: parsed.length,
+      latest: brief(receipts[0]), receipts: receipts.length, receiptDates: receipts.map(pm => pm.date),
+      cancelled: brief(cancelled[0]), failed: brief(failed[0]), trial: brief(trial[0]),
+      evidence: parsed.slice(0, 6).map(pm => ({ id: pm.id, date: pm.date, subject: pm.subject, receipt: pm.receipt, cancelled: pm.cancelled, failed: pm.failed })),
+    };
+  }
+
   root.Discover = {
-    providers, scan, analyze, parseMessage, toSubscription,
+    providers, scan, check, analyze, parseMessage, toSubscription, pendingResume,
     // for pasted receipts (any mailbox)
     fromPasted(text, opts) {
       opts = opts || {};

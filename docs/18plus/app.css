@@ -463,6 +463,46 @@ button{font-family:var(--font)}
 .disc-email{font-family:var(--font);font-size:13px;letter-spacing:0;color:var(--text-muted);font-weight:500;display:block;margin-top:2px}
 .disc-progress{height:8px;border-radius:4px;background:var(--surface3);overflow:hidden;margin:6px 0 10px}
 .disc-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-bright));border-radius:4px;transition:width .3s}
+.disc-bar.indeterminate{width:40%;animation:disc-slide 1.4s ease-in-out infinite}
+@keyframes disc-slide{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+@media (prefers-reduced-motion:reduce){.disc-bar.indeterminate{animation:none;width:100%;opacity:.6}}
+#ask-overlay{z-index:229}
+.ask-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.ask-head-main{flex:1;min-width:0}
+.ask-head-main b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ask-head-main small{display:block;font-size:12px;color:var(--text-faint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ask-thread{display:flex;flex-direction:column;gap:8px;max-height:min(46vh,420px);overflow-y:auto;padding:4px 2px;margin-bottom:10px;-webkit-overflow-scrolling:touch}
+.ask-bubble{max-width:92%;padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.5;color:var(--text)}
+.ask-bubble.ai{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:4px}
+.ask-bubble.me{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.ask-bubble.ai b{color:var(--text)}
+.ask-bubble a{color:var(--accent-text)}
+.ask-bubble.busy{padding:10px 14px}
+.ask-dots{display:inline-flex;gap:4px}
+.ask-dots i{width:6px;height:6px;border-radius:50%;background:var(--text-faint);animation:ask-blink 1.2s infinite}
+.ask-dots i:nth-child(2){animation-delay:.2s}.ask-dots i:nth-child(3){animation-delay:.4s}
+@keyframes ask-blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.ask-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.ask-chips.inline{margin:8px 0 0}
+.ask-chip{height:32px;padding:0 12px;border-radius:16px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-family:var(--font);font-size:12.5px;cursor:pointer;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.ask-chip:disabled{opacity:.45;cursor:default}
+.ask-bubble.ai .ask-chip{background:var(--surface3);height:30px;font-size:12px;white-space:normal;text-align:left;line-height:1.3;padding:5px 11px;height:auto}
+.ask-form{display:flex;gap:8px}
+.ask-form input{flex:1;min-width:0;padding:11px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface2);font-family:var(--font);font-size:14px;color:var(--text);outline:none}
+.ask-form input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,58,237,.15)}
+.ask-form .btn-primary{padding:0 16px;min-width:0}
+.form-ask{margin:4px 0 10px}
+.form-ask .link-btn{padding:8px 0;text-align:left;white-space:normal;line-height:1.35}
+.disc-fold{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;margin-top:12px;padding:12px 14px;border-radius:var(--r);border:1px dashed var(--border-strong);background:transparent;color:var(--text);text-align:left;cursor:pointer;font-family:var(--font)}
+.disc-fold b{display:block;font-size:14px;font-weight:600}
+.disc-fold small{display:block;font-size:12px;color:var(--text-faint);margin-top:2px;line-height:1.35}
+.disc-fold svg{flex-shrink:0;color:var(--text-faint);transition:transform .2s}
+.disc-fold.open svg{transform:rotate(180deg)}
+.disc-fold.open{border-style:solid;margin-bottom:8px}
+.disc-howto{margin:10px 0 0;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2);border:1px solid var(--border)}
+.disc-steps{margin:0 0 16px;padding-left:18px;font-size:13px;color:var(--text-muted);line-height:1.5}
+.disc-steps li{margin:6px 0}
+.disc-steps b{color:var(--text)}
 .disc-stage{font-size:14px;color:var(--text);margin-bottom:8px}
 .disc-summary{font-size:13px;color:var(--text-muted);margin:-8px 0 14px}
 .disc-list{display:flex;flex-direction:column;gap:8px}

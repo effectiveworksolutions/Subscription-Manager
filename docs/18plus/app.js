@@ -849,11 +849,13 @@
       <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${badgeHtml(s.status)}</span></div>
       <div class="detail-row"><span class="detail-label">Next payment</span><span class="detail-value">${rd && isBillable(s) ? `${money(s.price)} · ${fmtDateLong(rd)}` : '—'}</span></div>
       <div class="detail-row"><span class="detail-label">Payment method</span><span class="detail-value">${esc(s.paymentMethod) || '—'}</span></div>
+      ${s.accountEmail ? `<div class="detail-row"><span class="detail-label">Account email</span><span class="detail-value">${esc(s.accountEmail)}</span></div>` : ''}
       <div class="detail-row"><span class="detail-label">Billing</span><span class="detail-value" style="text-transform:capitalize">${esc(s.cycle)}</span></div>
       <div class="detail-row"><span class="detail-label">Billing start</span><span class="detail-value">${s.startDate ? fmtDateLong(new Date(s.startDate + 'T00:00:00')) : '—'}</span></div>
       ${s.notes ? `<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value" style="font-style:italic;font-weight:400">${esc(s.notes)}</span></div>` : ''}
       <div class="detail-actions">
         <button class="btn-primary" data-detail-edit="${s.id}">Edit</button>
+        <button class="btn-secondary" data-action="ask" data-id="${s.id}">💬 Ask</button>
         ${s.url ? `<a class="btn-link" href="${esc(s.url)}" target="_blank" rel="noopener"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>Manage</a>` : ''}
       </div>`;
     $('detail-overlay').classList.add('open');
@@ -890,6 +892,15 @@
       .map(c => `<option value="${c}" ${current === c ? 'selected' : ''}>${EMOJI_MAP[c]} ${c[0].toUpperCase() + c.slice(1)}</option>`).join('');
   }
   function ensureCatOption(cat) { const c = $('f-cat'); if (c && cat && ![...c.options].some(o => o.value === cat)) c.insertAdjacentHTML('beforeend', `<option value="${cat}">${EMOJI_MAP[cat] || ''} ${cat[0].toUpperCase() + cat.slice(1)}</option>`); }
+  // Emails the app already knows: the SubTracker login, scanned mailboxes, and ones on other subscriptions
+  function knownEmails() {
+    const out = [];
+    const add = e => { e = String(e || '').trim().toLowerCase(); if (e && e.includes('@') && !out.includes(e)) out.push(e); };
+    if (window.Sync && window.Sync.user) add(window.Sync.user.email);
+    (settings.mailboxes || []).forEach(m => add(m.email));
+    subs.forEach(s => add(s.accountEmail));
+    return out;
+  }
   function updRenew() {
     const sd = ($('f-start') || {}).value, cy = ($('f-cycle') || {}).value || 'monthly', el = $('renew-preview');
     if (!el) return;
@@ -915,9 +926,11 @@
       <div class="form-row"><label>Billing start date</label><input id="f-start" type="date" value="${esc(s.startDate || '')}"/><div class="form-hint">Any past payment date works — we roll it forward automatically.</div></div>
       <div class="form-row"><label>Next renewal (auto)</label><div class="renew-display" id="renew-preview"></div></div>
       <div class="form-row"><label>Payment method</label><input id="f-payment" type="text" value="${esc(s.paymentMethod || '')}" placeholder="e.g. Visa 1234, PayPal" autocomplete="off"/></div>
+      <div class="form-row"><label>Account email (optional)</label><input id="f-email" type="email" list="f-email-list" value="${esc(s.accountEmail || '')}" placeholder="e.g. you@gmail.com" autocomplete="off" inputmode="email" spellcheck="false"/><datalist id="f-email-list">${knownEmails().map(e => `<option value="${esc(e)}"></option>`).join('')}</datalist><div class="form-hint">The login this service is under — handy when bills land in different inboxes.</div></div>
       <div class="form-row"><label>Manage URL (optional)</label><input id="f-url" type="url" value="${esc(s.url || '')}" placeholder="https://…" autocomplete="off"/><div class="form-hint">Also used to fetch the logo.</div></div>
       <div class="form-row"><label>Notes (optional)</label><input id="f-notes" type="text" value="${esc(s.notes || '')}" placeholder="e.g. Family plan, 2 seats"/></div>
       <div id="f-error" class="form-error hidden"></div>
+      ${editId ? `<div class="form-ask"><button class="link-btn" data-action="ask" data-id="${esc(editId)}">💬 Ask about this subscription — is it active, which email, next charge…</button></div>` : ''}
       <div class="sheet-actions">
         ${editId ? `<button class="btn-danger" data-form-delete>Delete</button>` : ''}
         <button class="btn-secondary" data-form-cancel>Cancel</button>
@@ -952,10 +965,12 @@
     if (!domain && existing && existing.domain && (!existing.url || existing.url === url)) domain = existing.domain;
     if (!domain) domain = hostOf(url);
     commit({
+      ...(existing || {}), // keep what the form doesn't show (where it was imported from, etc.)
       id: existing ? existing.id : uuid(),
       name, price, emoji, domain,
       cycle: $('f-cycle').value, category: $('f-cat').value, status: $('f-status').value,
       startDate: $('f-start').value, paymentMethod: $('f-payment').value.trim(),
+      accountEmail: (($('f-email') || {}).value || '').trim().toLowerCase(),
       url, notes: $('f-notes').value.trim(),
     });
     closeForm(); toast(existing ? 'Saved' : `${name} added`);
@@ -1154,6 +1169,7 @@
             <span class="disc-pmain"><b>iCloud, Yahoo, work mail…</b><small>Paste a receipt email — works with any mailbox</small></span>
             <span class="disc-pstate">Paste</span></button>
         </div>
+        <div class="disc-text small disc-howto">You sign in on Google's or Microsoft's own page, pick the account, and allow <b>read-only</b> access. If your account uses an authenticator app or a code by text, approve that too — then you land straight back here and the scan starts.</div>
         ${mailboxes.length ? `<div class="disc-sub">Mailboxes you've scanned</div>${mailboxes.map(m => `<div class="set-row"><div class="set-row-main"><div class="set-row-label">${esc(m.email)}</div><div class="set-row-sub">${esc(m.provider === 'gmail' ? 'Gmail' : 'Outlook')} · last scan ${fmtIso((m.lastScanAt || '').slice(0, 10))} · ${plural(m.found || 0, 'subscription')} found</div></div><button class="link-btn" data-action="discover-connect" data-provider="${esc(m.provider)}" data-hint="${esc(m.email)}" ${discReady(m.provider) ? '' : 'disabled'}>Scan again</button><button class="link-btn danger" data-action="discover-forget" data-email="${esc(m.email)}">Forget</button></div>`).join('')}<div class="disc-text small" style="margin-top:8px">Tap Gmail or Outlook above to add another mailbox — you'll get to pick the account.</div>` : ''}
         ${disc.lastImport ? `<button class="btn-secondary btn-block" style="margin-top:14px" data-action="discover-cancel">Done</button>` : ''}
         ${privacy}`;
@@ -1164,6 +1180,22 @@
         <textarea id="disc-paste" class="disc-textarea" rows="9" placeholder="From: Apple <no_reply@email.apple.com>&#10;Subject: Your receipt from Apple.&#10;&#10;iCloud+ with 200GB Storage (Monthly) … $4.49"></textarea>
         ${disc.error ? `<div class="auth-banner danger">${esc(disc.error)}</div>` : ''}
         <div class="sheet-actions"><button class="btn-secondary" data-action="discover-back">Back</button><button class="btn-primary" data-action="discover-paste-go">Find the subscription</button></div>`;
+    } else if (disc.state === 'connecting') {
+      const ms = disc.provider === 'outlook';
+      const who = ms ? 'Microsoft' : 'Google';
+      const redirect = disc.connectMode === 'redirect';
+      html = `
+        <div class="sheet-title">✉️ Signing in with ${who}…</div>
+        <div class="disc-progress"><div class="disc-bar indeterminate"></div></div>
+        ${redirect
+          ? `<p class="disc-text">Taking you to ${who}'s sign-in page. Pick the mailbox, allow read-only access, and you'll come straight back here — the scan starts on its own.</p>`
+          : `<p class="disc-text">Finish the sign-in in the window that just opened: pick the mailbox and allow read-only access. This page waits for you.</p>`}
+        <ul class="disc-steps">
+          <li>Using <b>${ms ? 'Microsoft Authenticator' : 'a Google prompt'}</b> or a code by text? Approve it on your phone first — ${who} waits for that before sending you back.</li>
+          ${redirect ? '' : `<li>Can't see the window? It may have opened as a new tab. If it's gone, tap Cancel and try Connect again.</li>`}
+          <li>${ms ? 'Work or school account that says it "needs admin approval"? That organisation blocks mail apps — use a personal Outlook or Hotmail account instead.' : 'Google says the app is unverified? That\'s expected while SubTracker is in testing — tap Continue.'}</li>
+        </ul>
+        <button class="btn-secondary btn-block" data-action="discover-back">Cancel</button>`;
     } else if (disc.state === 'scanning') {
       const st = disc.stats || { stage: 'connect', done: 0, total: 1 };
       const pct = st.stage === 'connect' ? 4 : st.stage === 'search' ? 8 + 22 * (st.done / Math.max(1, st.total)) : st.stage === 'headers' ? 30 + 40 * (st.done / Math.max(1, st.total)) : st.stage === 'read' ? 70 + 26 * (st.done / Math.max(1, st.total)) : 98;
@@ -1176,12 +1208,14 @@
         <button class="btn-secondary btn-block" data-action="discover-cancel">Cancel</button>`;
     } else if (disc.state === 'results') {
       const items = disc.items;
-      const fresh = items.filter(i => !i.existing), known = items.filter(i => i.existing);
+      const mainIdx = items.map((it, i) => i).filter(i => items[i].kind !== 'oneoff');
+      const oneIdx = items.map((it, i) => i).filter(i => items[i].kind === 'oneoff');
+      const fresh = mainIdx.filter(i => !items[i].existing), known = mainIdx.filter(i => items[i].existing);
       const picked = items.filter(i => i.checked).length;
-      const confBadge = it => it.existing ? `<span class="disc-badge muted">On your list</span>` : it.status === 'cancelled' ? `<span class="disc-badge danger">Cancelled</span>` : it.status === 'trial' ? `<span class="disc-badge warn">Trial</span>` : it.marketingOnly ? `<span class="disc-badge muted">Only marketing emails</span>` : it.confidence === 'low' ? `<span class="disc-badge warn">Check price</span>` : '';
+      const confBadge = it => it.existing ? `<span class="disc-badge muted">On your list</span>` : it.status === 'cancelled' ? `<span class="disc-badge danger">Cancelled</span>` : it.status === 'trial' ? `<span class="disc-badge warn">Trial</span>` : it.marketingOnly ? `<span class="disc-badge muted">Only marketing emails</span>` : it.kind === 'oneoff' ? `<span class="disc-badge muted">One-off purchase</span>` : it.kind === 'unsure' ? `<span class="disc-badge warn">One-off or subscription?</span>` : it.confidence === 'low' ? `<span class="disc-badge warn">Check price</span>` : '';
       const itemHtml = (it, i) => {
         const svcLike = { name: it.name, domain: it.domain || (it.svc && it.svc.domain) || '', emoji: it.svc ? it.svc.emoji : '📦', category: it.svc ? it.svc.category : 'other' };
-        const price = it.price != null ? `${it.currency && it.currency !== 'AUD' ? it.currency + ' ' : ''}${money(it.price)}/${it.cycle === 'yearly' ? 'yr' : 'mo'}` : 'Price unknown';
+        const price = it.price != null ? `${it.currency && it.currency !== 'AUD' ? it.currency + ' ' : ''}${money(it.price)}${it.kind === 'oneoff' ? ' once' : it.kind === 'unsure' ? '' : '/' + (it.cycle === 'yearly' ? 'yr' : 'mo')}` : 'Price unknown';
         const meta = [price, it.lastDate ? `last charged ${fmtIso(it.lastDate)}` : '', it.card || '', it.via ? `via ${it.via}` : '', it.count > 1 ? plural(it.count, 'receipt') : ''].filter(Boolean).join(' · ');
         const editing = disc.editing === i;
         return `<div class="disc-item ${it.checked ? 'on' : ''}" data-disc="${i}">
@@ -1211,10 +1245,13 @@
         </div>`;
       };
       html = `
-        <div class="sheet-title">✉️ ${items.length ? `Found ${plural(fresh.length, 'subscription')}` : 'Nothing found'}</div>
-        <div class="disc-summary">${disc.email ? esc(disc.email) + ' · ' : ''}${disc.stats && disc.stats.scanned != null ? `${disc.stats.scanned} emails checked · ` : ''}${known.length ? `${known.length} already on your list` : 'tick what you want to add'}</div>
+        <div class="sheet-title">✉️ ${mainIdx.length ? `Found ${plural(fresh.length, 'subscription')}` : items.length ? 'No subscriptions found' : 'Nothing found'}</div>
+        <div class="disc-summary">${disc.email ? esc(disc.email) + ' · ' : ''}${disc.stats && disc.stats.scanned != null ? `${disc.stats.scanned} emails checked · ` : ''}${known.length ? `${known.length} already on your list · ` : ''}${oneIdx.length ? `${plural(oneIdx.length, 'one-off purchase')} set aside · ` : ''}${mainIdx.length ? 'tick what you want to add' : ''}</div>
         ${items.length ? '' : `<div class="finding finding-ok"><div class="finding-detail">No receipts or renewal emails turned up in the last 12 months. If your bills go to another address, scan that mailbox too — or paste a receipt.</div></div>`}
-        <div class="disc-list">${items.map(itemHtml).join('')}</div>
+        ${items.length && !mainIdx.length ? `<div class="finding finding-ok"><div class="finding-detail">Everything we found looks like a one-off purchase rather than something that renews. They're listed below in case one of them is a subscription after all.</div></div>` : ''}
+        <div class="disc-list">${mainIdx.map(i => itemHtml(items[i], i)).join('')}</div>
+        ${oneIdx.length ? `<button class="disc-fold ${disc.showOneOff ? 'open' : ''}" data-action="discover-toggle-oneoff"><span><b>Probably one-off purchases (${oneIdx.length})</b><small>Orders, deliveries and app purchases — set aside, nothing is added unless you tick it</small></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+        ${disc.showOneOff ? `<div class="disc-list">${oneIdx.map(i => itemHtml(items[i], i)).join('')}</div>` : ''}` : ''}
         <div class="sheet-actions">
           <button class="btn-secondary" data-action="discover-back">${items.length ? 'Cancel' : 'Back'}</button>
           ${items.length ? `<button class="btn-primary" data-action="discover-import" ${picked ? '' : 'disabled'}>Add ${picked ? picked : ''} to my list</button>` : ''}
@@ -1223,19 +1260,24 @@
     body.innerHTML = html;
   }
 
+  let discAttempt = 0; // bumped on every Connect tap and on Cancel, so a late sign-in result can't hijack the sheet
   async function discoverConnect(providerId, loginHint) {
     const p = discProvider(providerId); if (!p || !p.ready()) return;
+    const attempt = ++discAttempt;
     disc.provider = providerId; disc.error = ''; disc.cancelled = false; disc.email = loginHint || '';
+    // show what's happening while Google / Microsoft have the person (account picker, password, Authenticator…)
+    disc.state = 'connecting'; disc.connectMode = p.mode ? p.mode({ loginHint }) : 'popup'; renderDiscover();
     let session;
     try {
       // the popup must open straight from the tap — prepare() was already called when the sheet opened
       await p.prepare();
-      session = await p.connect({ loginHint: loginHint || '', prompt: loginHint ? '' : 'select_account' });
+      session = await p.connect({ loginHint: loginHint || '', prompt: loginHint ? '' : 'select_account', onRedirect: () => { disc.connectMode = 'redirect'; renderDiscover(); } });
     } catch (e) {
-      if (/cancelled|popup_closed/i.test(e && e.message || '')) return;
+      if (attempt !== discAttempt) return; // cancelled or superseded meanwhile
+      if (/^cancelled$|popup_closed/i.test(e && e.message || '')) { disc.state = 'choose'; renderDiscover(); return; }
       disc.error = (e && e.message) || 'Could not connect'; disc.state = 'choose'; renderDiscover(); return;
     }
-    if (disc.cancelled) { try { p.disconnect(session); } catch {} return; }
+    if (attempt !== discAttempt || disc.cancelled) { try { p.disconnect(session); } catch {} return; }
     disc.session = session; disc.state = 'scanning'; disc.stats = { stage: 'connect', done: 0, total: 1 }; renderDiscover();
     try {
       const res = await DISC.scan(session, { months: 12, existing: subs, onProgress: st => { if (disc.cancelled) return; disc.stats = st; renderDiscover(); } });
@@ -1244,6 +1286,7 @@
       disc.email = res.email || disc.email; disc.items = res.items; disc.stats = { scanned: res.scanned }; disc.state = 'results'; disc.editing = -1;
       renderDiscover();
       rememberMailbox(providerId, disc.email, res.items.length);
+      if (settings.pendingConnect) { settings.pendingConnect = ''; saveSettings(); } // the hand-off did its job
     } catch (e) {
       if (disc.cancelled) return;
       try { p.disconnect(session); } catch {}
@@ -1286,15 +1329,251 @@
     if (!DISC || isNative()) return;
     try {
       const session = await DISC.providers.outlook.resume();
-      if (!session) return;
+      const pendingAsk = askPendingResume();
+      if (!session) { if (settings.pendingConnect && !discoverOpen()) openDiscover(settings.pendingConnect === '1' ? '' : settings.pendingConnect); return; }
+      if (pendingAsk && pendingAsk.id && subs.find(x => x.id === pendingAsk.id)) { openAsk(pendingAsk.id); await askRunCheck(session); return; }
       openDiscover('outlook');
       disc.session = session; disc.state = 'scanning'; disc.email = session.email || ''; disc.stats = { stage: 'connect', done: 0, total: 1 }; renderDiscover();
       const res = await DISC.scan(session, { months: 12, existing: subs, onProgress: st => { if (disc.cancelled) return; disc.stats = st; renderDiscover(); } });
       if (disc.cancelled) return;
       disc.session = null; disc.email = res.email || disc.email; disc.items = res.items; disc.stats = { scanned: res.scanned }; disc.state = 'results'; renderDiscover();
       rememberMailbox('outlook', disc.email, res.items.length);
-    } catch (e) { disc.error = (e && e.message) || 'The scan failed'; disc.state = 'choose'; renderDiscover(); }
+      if (settings.pendingConnect) { settings.pendingConnect = ''; saveSettings(); }
+    } catch (e) {
+      if (!discoverOpen()) openDiscover('outlook');
+      if (settings.pendingConnect) { settings.pendingConnect = ''; saveSettings(); }
+      disc.error = /^cancelled$/.test(e && e.message || '') ? 'Microsoft sign-in was cancelled — tap Connect to try again.' : (e && e.message) || 'The scan failed';
+      disc.state = 'choose'; renderDiscover();
+    }
   }
+
+  // ── Ask about this subscription ──────────────────────────────────────
+  //  A small assistant for one subscription. It answers from what the app
+  //  already knows (status, dates, price, card, linked email) and can look in a
+  //  connected mailbox for the latest receipt or a cancellation email. It runs on
+  //  the device like the AI review — nothing is sent anywhere.
+  let ask = { id: null, thread: [], busy: false, pending: null, proposal: null };
+  let pendingAskId = ''; // ?ask=<id> arrived before the list had synced
+  const ASK_PROMPTS = [
+    { id: 'active', label: 'Is it still active?' },
+    { id: 'email', label: 'Which email is it under?' },
+    { id: 'next', label: "When's the next charge?" },
+    { id: 'paid', label: 'What have I paid this year?' },
+    { id: 'cancel', label: 'How do I cancel?' },
+    { id: 'check', label: '✉️ Check my inbox' },
+  ];
+  const askSub = () => subs.find(x => x.id === ask.id);
+  const askOpen = () => { const o = $('ask-overlay'); return !!(o && o.classList.contains('open')); };
+  function openAsk(id, first) {
+    const s = subs.find(x => x.id === id); if (!s) return;
+    ask = { id, thread: [], busy: false, pending: null, proposal: null };
+    askSay('ai', `Ask me anything about <b>${esc(s.name)}</b> — tap a question or type your own.`);
+    $('ask-overlay').classList.add('open');
+    if (first) askIntent(first);
+  }
+  function closeAsk() { $('ask-overlay').classList.remove('open'); ask.busy = false; ask.pending = null; }
+  function askSay(role, html, extra) { ask.thread.push({ role, html, ...(extra || {}) }); renderAsk(); }
+  function renderAsk() {
+    const body = $('ask-body'); if (!body) return;
+    const s = askSub(); if (!s) { body.innerHTML = ''; return; }
+    const last = ask.thread[ask.thread.length - 1] || {};
+    body.innerHTML = `
+      <div class="ask-head"><div class="sub-icon" style="width:36px;height:36px">${logoHtml(s)}</div><div class="ask-head-main"><b>${esc(s.name)}</b><small>${money(s.price)}/${s.cycle === 'yearly' ? 'yr' : 'mo'} · ${esc(s.status)}${s.accountEmail ? ` · ${esc(s.accountEmail)}` : ''}</small></div><button class="link-btn" data-close="ask-overlay">Done</button></div>
+      <div class="ask-thread" id="ask-thread">${ask.thread.map(m => `<div class="ask-bubble ${m.role}">${m.html}${m.chips ? `<div class="ask-chips inline">${m.chips.map(c => `<button class="ask-chip" data-ask-chip="${esc(c.action)}" data-arg="${esc(c.arg || '')}">${esc(c.label)}</button>`).join('')}</div>` : ''}</div>`).join('')}${ask.busy ? `<div class="ask-bubble ai busy"><span class="ask-dots"><i></i><i></i><i></i></span></div>` : ''}</div>
+      ${last.proposal ? '' : ''}
+      <div class="ask-chips">${ASK_PROMPTS.map(p => `<button class="ask-chip" data-ask="${p.id}" ${ask.busy ? 'disabled' : ''}>${p.label}</button>`).join('')}</div>
+      <form class="ask-form" id="ask-form"><input id="ask-input" type="text" placeholder="Ask about ${esc(s.name)}…" autocomplete="off" ${ask.busy ? 'disabled' : ''}/><button class="btn-primary" type="submit" ${ask.busy ? 'disabled' : ''}>Ask</button></form>`;
+    const th = $('ask-thread'); if (th) th.scrollTop = th.scrollHeight;
+  }
+  // What is the person asking? (keyword rules — no model, no network)
+  function askDetect(text) {
+    const t = ' ' + String(text || '').toLowerCase().replace(/[^\w\s@'-]/g, ' ') + ' ';
+    const has = re => re.test(t);
+    if (has(/\b(which|what|whose)\s+(email|e-mail|address|account|login)\b/) || has(/\b(linked|under|signed up|registered|tied)\b/)) return 'email';
+    if (has(/\b(check|look|search|scan|find|inbox|mailbox|receipts?|latest)\b/)) return 'check';
+    if (has(/\b(how\s+(do|can|would|could)\s+i|how\s+to|want\s+to|help\s+me|where\s+(do|can)\s+i|steps?\s+to)\b/) && has(/\b(cancel|stop|quit|end|unsubscribe|leave|get\s+out|close)\b/)) return 'cancel';
+    if (has(/\b(cancel\s+it|unsubscribe|stop\s+paying|get\s+rid|end\s+it)\b/)) return 'cancel';
+    if (has(/\b(active|still|running|current|live|cancell?ed|paused|using|is\s+it\s+on|do\s+i\s+(still\s+)?have|have\s+i\s+got|status)\b/)) return 'active';
+    if (has(/\b(next|when|due|renews?|renewal|charge[sd]?|bill(ing|ed)?|payment\s+date|coming\s+up|upcoming)\b/)) return 'next';
+    if (has(/\b(paid|spent|spend|cost\s+me|total|so\s+far|this\s+year|last\s+year|how\s+much\s+have|altogether|lifetime)\b/)) return 'paid';
+    if (has(/\b(price|cost|how\s+much|per\s+month|monthly|yearly|annual|plan|rate|fee)\b/)) return 'price';
+    if (has(/\b(card|payment\s+method|pay\s+method|visa|mastercard|amex|paypal|debit|paying\s+with|which\s+card|how\s+(am|do)\s+i\s+pay)\b/)) return 'card';
+    if (has(/\b(email|e-mail|address|account|login)\b/)) return 'email';
+    if (has(/\b(notes?|details?|info|about|tell\s+me|summary|summar|everything|what\s+is\s+this)\b/)) return 'summary';
+    return '';
+  }
+  function askIntent(idOrText) {
+    const s = askSub(); if (!s || ask.busy) return;
+    const known = ASK_PROMPTS.find(p => p.id === idOrText);
+    const intent = known ? known.id : askDetect(idOrText);
+    askSay('me', esc(known ? known.label.replace(/^✉️\s*/, '') : idOrText));
+    if (intent === 'check') { askOfferMailboxes(); return; }
+    askSay('ai', askAnswer(s, intent));
+  }
+  // ── the answers ──
+  const lastChargeDate = s => {
+    const n = nextRenewalDate(s.startDate, s.cycle); if (!n) return null;
+    const d = new Date(n); if (s.cycle === 'yearly') d.setFullYear(d.getFullYear() - 1); else d.setMonth(d.getMonth() - 1);
+    const start = new Date(s.startDate + 'T00:00:00'); return d < start ? null : d;
+  };
+  function chargesBetween(s, from, to) {
+    if (!s.startDate) return 0;
+    const d = new Date(s.startDate + 'T00:00:00'); if (isNaN(d)) return 0;
+    let n = 0, guard = 0;
+    while (d <= to && guard++ < 2500) { if (d >= from) n++; if (s.cycle === 'yearly') d.setFullYear(d.getFullYear() + 1); else d.setMonth(d.getMonth() + 1); }
+    return n;
+  }
+  const askDate = d => d ? d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+  function askAnswer(s, intent) {
+    const rd = nextRenewalDate(s.startDate, s.cycle), last = lastChargeDate(s), days = rd ? daysUntil(rd) : null;
+    const per = s.cycle === 'yearly' ? 'year' : 'month';
+    const fromEmail = /^email:/.test(s.source || '');
+    const inbox = s.accountEmail ? `<b>${esc(s.accountEmail)}</b>` : '';
+    const checkHint = `Want me to look in your inbox for the latest receipt? Tap <b>Check my inbox</b> below.`;
+    switch (intent) {
+      case 'active': {
+        if (s.status === 'cancelled') return `You've marked <b>${esc(s.name)}</b> as <b>cancelled</b>${s.notes ? ` — your note says “${esc(s.notes)}”` : ''}. It's not counted in your totals. If it's somehow still charging you, I can look for recent receipts — tap <b>Check my inbox</b> below.`;
+        if (s.status === 'paused') return `It's marked <b>paused</b> — no charges are expected until you set it back to active. ${checkHint}`;
+        if (s.status === 'trial') return `It's on a <b>free trial</b>${rd ? `. The first charge of <b>${money(s.price)}</b> is expected on <b>${askDate(rd)}</b> (in ${plural(days, 'day')}) unless you cancel before then` : ''}. ${checkHint}`;
+        return `As far as SubTracker knows it's <b>active</b>${last ? ` — the last charge of ${money(s.price)} would have been around <b>${askDate(last)}</b>` : ''}${rd ? `, and the next is due <b>${askDate(rd)}</b> (in ${plural(days, 'day')})` : ''}.${fromEmail && s.accountEmail ? ` It was found from receipts in ${inbox}.` : ''} I can only be sure from a receipt — ${checkHint}`;
+      }
+      case 'email':
+        if (s.accountEmail) return `It's under ${inbox}${fromEmail ? ` — that's the inbox the receipts were found in` : ''}. Bills and renewal notices for <b>${esc(s.name)}</b> should land there.`;
+        return `I don't know which email <b>${esc(s.name)}</b> is under yet. You can type it in (Edit → <i>Account email</i>), or tap <b>Check my inbox</b> and I'll look for its receipts — whichever mailbox they're in is the one it's linked to.`;
+      case 'next':
+        if (!isBillable(s)) return `It's ${esc(s.status)}, so no charge is expected. Set it back to active if that changes.`;
+        if (!rd) return `Add a billing start date (Edit → <i>Billing start date</i>) and I'll work out the next charge — any past payment date will do.`;
+        return `<b>${money(s.price)}</b> on <b>${askDate(rd)}</b> — ${days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${plural(days, 'day')}`}${s.cycle === 'yearly' ? ` (that's ≈ ${money(toMonthly(s))} a month)` : ''}${s.paymentMethod ? `, charged to ${esc(s.paymentMethod)}` : ''}.`;
+      case 'paid': {
+        if (!s.startDate) return `Add a billing start date and I can add it up — any past payment date works.`;
+        const now = new Date(); now.setHours(23, 59, 59, 0);
+        const jan1 = new Date(now.getFullYear(), 0, 1);
+        const y = chargesBetween(s, jan1, now), all = chargesBetween(s, new Date(2000, 0, 1), now);
+        const since = new Date(s.startDate + 'T00:00:00');
+        return `About <b>${money(y * s.price)}</b> so far this year (${plural(y, 'charge')} of ${money(s.price)}${s.cycle === 'yearly' ? ' a year' : ' a month'}). Since ${askDate(since)} that's roughly <b>${money(all * s.price)}</b> over ${plural(all, 'payment')}${isBillable(s) ? `, and it adds up to <b>${money(toYearly(s))}</b> a year if it keeps going` : ''}.`;
+      }
+      case 'cancel': {
+        const svc = svcFor(s); const url = s.url || (svc && svc.url) || '';
+        const steps = `Usually it's Account → Subscription (or Membership / Billing) → Cancel, and you keep access until the period you've paid for ends.`;
+        return `${url ? `Open your <b>${esc(s.name)}</b> account page: <a href="${esc(url)}" target="_blank" rel="noopener">${esc(hostOf(url) || url)}</a>. ` : ''}${steps}${/paid through (apple|google play)/i.test(s.notes || '') ? ` This one is billed through ${/apple/i.test(s.notes) ? 'Apple — cancel it in Settings → your name → Subscriptions on your iPhone' : 'Google Play — cancel it in the Play Store → Payments & subscriptions'}.` : ''} Once you've done it, mark it here so it drops out of your totals: <button class="ask-chip" data-ask-chip="mark" data-arg="cancelled">Mark as cancelled</button>`;
+      }
+      case 'price':
+        return `<b>${money(s.price)}</b> per ${per}${s.cycle === 'yearly' ? ` — about ${money(toMonthly(s))} a month` : ` — ${money(toYearly(s))} a year`}.${s.notes ? ` Note: “${esc(s.notes)}”.` : ''}`;
+      case 'card':
+        return s.paymentMethod ? `It's paid with <b>${esc(s.paymentMethod)}</b>${/paid through/i.test(s.notes || '') ? ` (${esc((s.notes.match(/paid through [^·]+/i) || [''])[0].trim())})` : ''}.` : `No payment method recorded. Add it under Edit → <i>Payment method</i>, or tap <b>Check my inbox</b> — receipts usually show the card's last four digits.`;
+      case 'summary':
+        return `<b>${esc(s.name)}</b> · ${money(s.price)}/${per === 'year' ? 'yr' : 'mo'} · ${esc(s.status)}${rd && isBillable(s) ? ` · next charge ${askDate(rd)}` : ''}${s.paymentMethod ? ` · ${esc(s.paymentMethod)}` : ''}${s.accountEmail ? ` · ${esc(s.accountEmail)}` : ''}${s.startDate ? ` · since ${askDate(new Date(s.startDate + 'T00:00:00'))}` : ''}${s.notes ? ` · “${esc(s.notes)}”` : ''}.`;
+      default:
+        return `I can tell you whether it's active, which email it's under, when the next charge is, what you've paid, how to cancel, or check your inbox for the latest receipt — tap one below or ask in your own words.`;
+    }
+  }
+  // ── inbox check ──
+  function askOfferMailboxes() {
+    const chips = [];
+    (settings.mailboxes || []).forEach(m => { if (discReady(m.provider)) chips.push({ label: `${m.provider === 'gmail' ? 'Gmail' : 'Outlook'} · ${m.email}`, action: 'check', arg: m.provider + '|' + m.email }); });
+    if (discReady('gmail')) chips.push({ label: chips.some(c => c.arg.startsWith('gmail|')) ? 'Another Gmail account' : 'Gmail', action: 'check', arg: 'gmail|' });
+    if (discReady('outlook')) chips.push({ label: chips.some(c => c.arg.startsWith('outlook|')) ? 'Another Outlook account' : 'Outlook / Hotmail', action: 'check', arg: 'outlook|' });
+    if (!chips.length) { askSay('ai', `Email checking isn't set up in this build yet.`); return; }
+    if (isNative()) { askSay('ai', `Looking in a mailbox happens in your phone's browser (Google and Microsoft don't allow their sign-in inside apps). I'll open the web app on this subscription — sign in to SubTracker there so any changes sync back.`, { chips: [{ label: 'Open in browser', action: 'open-web', arg: '' }] }); return; }
+    askSay('ai', `Which mailbox should I look in? I'll search the last 6 months for <b>${esc(askSub().name)}</b> receipts, read-only, and switch access off again straight after.`, { chips });
+  }
+  async function askCheck(provider, email) {
+    const s = askSub(); if (!s || !DISC || ask.busy) return;
+    const p = discProvider(provider); if (!p || !p.ready()) return;
+    ask.busy = true; ask.pending = { provider, email };
+    const who = provider === 'gmail' ? 'Google' : 'Microsoft';
+    askSay('ai', `Signing in with ${who}${email ? ` as ${esc(email)}` : ''}… finish the sign-in in the window that opens (approve it in your Authenticator app if you use one).`);
+    let session;
+    try {
+      await p.prepare();
+      session = await p.connect({ loginHint: email || '', prompt: email ? '' : 'select_account', onRedirect: () => { try { sessionStorage.setItem('subtracker_ask_pending', JSON.stringify({ id: s.id, provider })); } catch {} ask.thread.push({ role: 'ai', html: `Taking you to ${who} — you'll come straight back here.` }); renderAsk(); } });
+    } catch (e) {
+      ask.busy = false; ask.pending = null;
+      askSay('ai', /^cancelled$/.test(e && e.message || '') ? 'Sign-in was cancelled — no problem.' : esc((e && e.message) || 'Could not connect'));
+      return;
+    }
+    await askRunCheck(session);
+  }
+  async function askRunCheck(session) {
+    const s = askSub(); if (!s) return;
+    ask.busy = true;
+    askSay('ai', `Looking for <b>${esc(s.name)}</b> receipts in ${esc(session.email || 'that mailbox')}…`);
+    try {
+      const svc = svcFor(s);
+      const canon = svc ? svc.name : s.name;
+      const aliases = Object.entries(window.SERVICE_ALIASES || {}).filter(([, v]) => v === canon).map(([k]) => k);
+      if (svc && svc.name !== s.name) aliases.push(svc.name);
+      const res = await DISC.check(session, { name: s.name, domain: s.domain || (svc && svc.domain) || hostOf(s.url || ''), aliases, months: 6 });
+      rememberMailbox(session.provider, res.email || session.email || '', 0);
+      ask.busy = false; ask.pending = null;
+      askSay('ai', ...askCheckSummary(s, res));
+    } catch (e) {
+      ask.busy = false; ask.pending = null;
+      askSay('ai', esc((e && e.message) || 'The check failed'));
+    }
+  }
+  // Turn the check result into an answer + proposed changes → [html, { chips }]
+  function askCheckSummary(s, res) {
+    const email = res.email || '';
+    if (!res.matched || (!res.latest && !res.cancelled && !res.failed && !res.trial)) {
+      const chips = [];
+      (settings.mailboxes || []).filter(m => m.email !== email && discReady(m.provider)).forEach(m => chips.push({ label: `Try ${m.email}`, action: 'check', arg: m.provider + '|' + m.email }));
+      chips.push({ label: 'Another mailbox', action: 'check-pick', arg: '' });
+      return [`Nothing from <b>${esc(s.name)}</b> turned up in <b>${esc(email)}</b> in the last 6 months (${res.scanned} emails looked at). It may be billed to a different address${s.accountEmail && s.accountEmail !== email ? ` — you have it down as ${esc(s.accountEmail)}` : ''}, or the receipts come through Apple/Google Play/PayPal under another name.`, { chips }];
+    }
+    const L = res.latest, parts = [], updates = {}, why = [];
+    const isoToDate = iso => iso ? new Date(iso + 'T00:00:00') : null;
+    let verdict = '';
+    if (L) {
+      parts.push(`Latest receipt: <b>${askDate(isoToDate(L.date))}</b>${L.amount != null ? ` — <b>${L.currency && L.currency !== 'AUD' ? L.currency + ' ' : ''}${money(L.amount)}</b>` : ''}${L.card ? ` on ${esc(L.card)}` : ''}${L.via ? ` via ${esc(L.via)}` : ''}${res.receipts > 1 ? ` · ${plural(res.receipts, 'receipt')} in 6 months` : ''}.`);
+    }
+    if (res.cancelled && (!L || res.cancelled.date >= L.date)) {
+      verdict = 'cancelled';
+      parts.push(`Then a cancellation email on <b>${askDate(isoToDate(res.cancelled.date))}</b> (“${esc(res.cancelled.subject)}”) — so it looks <b>cancelled</b>.`);
+      if (s.status !== 'cancelled') { updates.status = 'cancelled'; why.push('mark it cancelled'); }
+    } else if (res.failed && L && res.failed.date > L.date) {
+      verdict = 'trouble';
+      parts.push(`A failed-payment email arrived on <b>${askDate(isoToDate(res.failed.date))}</b> after that receipt — the card may need updating.`);
+    } else if (L) {
+      verdict = 'active';
+      const cyc = L.cycle || s.cycle; const next = isoToDate(L.date); if (next) { if (cyc === 'yearly') next.setFullYear(next.getFullYear() + 1); else if (cyc === 'weekly') next.setDate(next.getDate() + 7); else next.setMonth(next.getMonth() + 1); }
+      const renews = L.renews ? isoToDate(L.renews) : null;
+      parts.push(`No cancellation or failed-payment emails since, so it looks <b>active</b>${renews ? ` — the receipt says it renews on <b>${askDate(renews)}</b>` : next ? ` — next charge expected around <b>${askDate(next)}</b>` : ''}.`);
+      if (s.status === 'cancelled' || s.status === 'paused') { updates.status = 'active'; why.push('set it back to active'); }
+    } else if (res.trial) {
+      verdict = 'trial';
+      parts.push(`Only a trial email so far (<b>${askDate(isoToDate(res.trial.date))}</b>) — no receipts yet.`);
+      if (s.status !== 'trial') { updates.status = 'trial'; why.push('mark it as a trial'); }
+    }
+    parts.push(`Linked email: <b>${esc(email)}</b>.`);
+    if (email && s.accountEmail !== email) { updates.accountEmail = email; why.push(s.accountEmail ? `change the account email from ${s.accountEmail}` : `record ${email} as the account email`); }
+    if (L && L.date && (!s.startDate || L.date > s.startDate) && verdict !== 'cancelled') { updates.startDate = L.date; why.push(`set the billing date to ${askDate(isoToDate(L.date))}`); }
+    if (L && L.amount != null && (!L.currency || L.currency === 'AUD') && Math.abs(Number(L.amount) - Number(s.price)) > 0.005 && (L.cycle || s.cycle) === s.cycle) { updates.price = L.amount; why.push(`update the price to ${money(L.amount)}`); }
+    if (L && L.card && !s.paymentMethod) { updates.paymentMethod = L.card; why.push(`note the card (${L.card})`); }
+    ask.proposal = Object.keys(updates).length ? updates : null;
+    const chips = [];
+    if (ask.proposal) { chips.push({ label: `Apply: ${why.join(', ')}`, action: 'apply', arg: '' }); chips.push({ label: 'Leave it as is', action: 'dismiss', arg: '' }); }
+    else parts.push(`Everything on your entry already matches.`);
+    return [parts.join(' '), { chips }];
+  }
+  function askApply() {
+    const s = askSub(); if (!s || !ask.proposal) return;
+    commit({ ...s, ...ask.proposal });
+    const n = Object.keys(ask.proposal).length; ask.proposal = null;
+    askSay('ai', `Done — ${plural(n, 'change')} saved.`);
+    toast('Updated');
+  }
+  function askChip(action, arg) {
+    const s = askSub(); if (!s) return;
+    if (action === 'check') { const [provider, email] = String(arg || '').split('|'); askSay('me', email ? `Check ${esc(email)}` : `Check a ${provider === 'gmail' ? 'Gmail' : 'Outlook'} account`); askCheck(provider, email || ''); }
+    else if (action === 'check-pick') { askOfferMailboxes(); }
+    else if (action === 'apply') { askApply(); }
+    else if (action === 'dismiss') { ask.proposal = null; askSay('ai', 'OK, left as is.'); }
+    else if (action === 'mark') { commit({ ...s, status: arg || 'cancelled' }); askSay('ai', `Marked as <b>${esc(arg || 'cancelled')}</b>.`); }
+    else if (action === 'open-web') { const u = (CFG.EDITION_URL || APP_URL || '') + ((CFG.EDITION_URL || APP_URL || '').includes('?') ? '&' : '?') + 'ask=' + encodeURIComponent(s.id); try { window.open(u, '_blank'); } catch { location.href = u; } }
+  }
+  // Return leg of a full-page Microsoft sign-in started from the Ask panel
+  function askPendingResume() { try { const j = sessionStorage.getItem('subtracker_ask_pending'); if (!j) return null; sessionStorage.removeItem('subtracker_ask_pending'); return JSON.parse(j); } catch { return null; } }
 
   // ── Age gate (adults-only services) ─────────────────────────────────
   function openAgeGate() {
@@ -1564,7 +1843,7 @@
   // ── Event wiring (delegated) ─────────────────────────────────────────
   function wire() {
     document.addEventListener('click', e => {
-      const t = e.target.closest('[data-action],[data-view],[data-id],[data-edit],[data-tile],[data-form-save],[data-form-cancel],[data-form-delete],[data-detail-edit],[data-auth-tab],[data-auth-submit],[data-auth-reset],[data-auth-close],[data-auth-later],[data-close],[data-ob-start],[data-ob-skip],[data-stop],.opt-pill,.chip');
+      const t = e.target.closest('[data-action],[data-view],[data-id],[data-edit],[data-tile],[data-form-save],[data-form-cancel],[data-form-delete],[data-detail-edit],[data-auth-tab],[data-auth-submit],[data-auth-reset],[data-auth-close],[data-auth-later],[data-close],[data-ob-start],[data-ob-skip],[data-stop],[data-ask],[data-ask-chip],.opt-pill,.chip');
       if (!t) return;
       if (t.hasAttribute('data-stop')) { e.stopPropagation(); return; }
 
@@ -1587,7 +1866,9 @@
       }
       if (t.hasAttribute('data-auth-close')) { closeAuth(); return; }
       if (t.hasAttribute('data-auth-later')) { dismissAuthPrompt(); return; }
-      if (t.dataset.close) { const el = $(t.dataset.close); if (el) el.classList.remove('open'); return; }
+      if (t.dataset.close) { const el = $(t.dataset.close); if (el) el.classList.remove('open'); if (t.dataset.close === 'ask-overlay') closeAsk(); return; }
+      if (t.dataset.ask) { askIntent(t.dataset.ask); return; }
+      if (t.dataset.askChip) { askChip(t.dataset.askChip, t.dataset.arg || ''); return; }
 
       if (t.classList.contains('chip') && t.closest('#m-chips')) {
         filterStatus = t.dataset.val; syncChips(); updateFilterDot(); render(); return;
@@ -1630,12 +1911,14 @@
         case 'dup-remove': dupRemoveSelected(); break;
         case 'dup-ignore': dupIgnoreGroup(t.dataset.key); break;
         case 'discover': openDiscover(''); break;
+        case 'ask': closeDetail(); closeForm(); openAsk(t.dataset.id); break;
         case 'discover-paste': if (!$('discover-overlay').classList.contains('open')) openDiscover(''); disc.state = 'paste'; disc.error = ''; renderDiscover(); setTimeout(() => { const ta = $('disc-paste'); if (ta) ta.focus(); }, 50); break;
         case 'discover-paste-go': discoverPasteGo(); break;
         case 'discover-connect': discoverConnect(t.dataset.provider, t.dataset.hint || ''); break;
         case 'discover-open-web': { const w = window.open(discWebUrl(), '_blank'); if (!w) copyText(discWebUrl()).then(() => toast('Link copied — open it in your browser')); break; }
         case 'discover-cancel': closeDiscover(); break;
-        case 'discover-back': disc.state = isNative() ? 'handoff' : 'choose'; disc.error = ''; disc.items = []; renderDiscover(); break;
+        case 'discover-toggle-oneoff': disc.showOneOff = !disc.showOneOff; renderDiscover(); break;
+        case 'discover-back': discAttempt++; disc.state = isNative() ? 'handoff' : 'choose'; disc.error = ''; disc.items = []; renderDiscover(); break;
         case 'discover-import': discoverImport(); break;
         case 'discover-forget': settings.mailboxes = (settings.mailboxes || []).filter(m => m.email !== t.dataset.email); saveSettings(); renderDiscover(); if (view === 'settings') renderSettings(); break;
       }
@@ -1681,9 +1964,12 @@
       if (e.target.id === 'import-file' && e.target.files[0]) { importJSON(e.target.files[0]); e.target.value = ''; }
     });
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') document.querySelectorAll('.sheet-overlay.open').forEach(o => { if (o.id === 'discover-overlay') closeDiscover(); else o.classList.remove('open'); });
+      if (e.key === 'Escape') document.querySelectorAll('.sheet-overlay.open').forEach(o => { if (o.id === 'discover-overlay') closeDiscover(); else if (o.id === 'ask-overlay') closeAsk(); else o.classList.remove('open'); });
       if (e.key === 'Enter' && e.target.closest('#auth-body')) { const b = document.querySelector('[data-auth-submit]'); if (b) b.click(); }
       if (e.key === 'Enter' && e.target.id === 'join-code') submitJoin();
+    });
+    document.addEventListener('submit', e => {
+      if (e.target.id === 'ask-form') { e.preventDefault(); const inp = $('ask-input'); const q = (inp && inp.value || '').trim(); if (q) askIntent(q); if (inp) inp.value = ''; }
     });
     let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 120); });
     document.addEventListener('visibilitychange', () => {
@@ -1715,7 +2001,7 @@
       window.Sync.on('onAuth', u => { if (!u) { listInfo = null; profile = null; } render(); if (discoverOpen()) renderDiscover(); if (u && settings.pendingInvite) setTimeout(applyPendingInvite, 400); });
       window.Sync.on('onStatus', st => { syncState = st; if (view === 'settings') renderSettings(); });
       window.Sync.on('onList', () => { listInfoFor = null; if (view === 'settings') renderSettings(); });
-      window.Sync.on('onPulled', () => { setTimeout(() => maybePromptDuplicates('sync'), 600); });
+      window.Sync.on('onPulled', () => { if (pendingAskId && subs.find(x => x.id === pendingAskId)) { const id = pendingAskId; pendingAskId = ''; openAsk(id); } setTimeout(() => maybePromptDuplicates('sync'), 600); });
       window.Sync.init();
     }
     const onboarding = maybeOnboard();
@@ -1723,12 +2009,14 @@
     syncChips(); updateFilterDot();
     checkDueSoon();
     scheduleNotifications();
-    let connect = '';
-    try { const u = new URL(location.href); connect = u.searchParams.get('connect') || ''; if (connect) history.replaceState(null, '', location.pathname + location.hash); } catch {}
+    let connect = '', askId = '';
+    try { const u = new URL(location.href); connect = u.searchParams.get('connect') || ''; askId = u.searchParams.get('ask') || ''; if (connect || askId) history.replaceState(null, '', location.pathname + location.hash); } catch {}
+    if (askId && !isNative()) { if (subs.find(x => x.id === askId)) setTimeout(() => openAsk(askId), 400); else pendingAskId = askId; } // not here yet → after the first sync pull
     if (connect && !isNative()) { settings.pendingConnect = connect; saveSettings(); }
     else if (settings.pendingConnect && !isNative()) connect = settings.pendingConnect; // came back after signing in / a reload
-    if (connect && !isNative()) { setTimeout(() => openDiscover(connect === '1' ? '' : connect), onboarding ? 0 : 300); }
-    else if (!onboarding) { maybePromptAuth(false); setTimeout(() => maybePromptDuplicates('boot'), 900); }
+    const resuming = !!(DISC && DISC.pendingResume && DISC.pendingResume() && !isNative()); // Microsoft is sending us back — discoverResume() opens the sheet
+    if (connect && !isNative() && !resuming) { setTimeout(() => openDiscover(connect === '1' ? '' : connect), onboarding ? 0 : 300); }
+    else if (!onboarding && !resuming) { maybePromptAuth(false); setTimeout(() => maybePromptDuplicates('boot'), 900); }
     discoverResume();
 
     // iOS install tip
