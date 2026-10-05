@@ -1843,7 +1843,7 @@
   // ── Event wiring (delegated) ─────────────────────────────────────────
   function wire() {
     document.addEventListener('click', e => {
-      const t = e.target.closest('[data-action],[data-view],[data-id],[data-edit],[data-tile],[data-form-save],[data-form-cancel],[data-form-delete],[data-detail-edit],[data-auth-tab],[data-auth-submit],[data-auth-reset],[data-auth-close],[data-auth-later],[data-close],[data-ob-start],[data-ob-skip],[data-stop],[data-ask],[data-ask-chip],.opt-pill,.chip');
+      const t = e.target.closest('[data-action],.nav-item[data-view],.d-tab[data-view],[data-id],[data-edit],[data-tile],[data-form-save],[data-form-cancel],[data-form-delete],[data-detail-edit],[data-auth-tab],[data-auth-submit],[data-auth-reset],[data-auth-close],[data-auth-later],[data-close],[data-ob-start],[data-ob-skip],[data-stop],[data-ask],[data-ask-chip],.opt-pill,.chip');
       if (!t) return;
       if (t.hasAttribute('data-stop')) { e.stopPropagation(); return; }
 
